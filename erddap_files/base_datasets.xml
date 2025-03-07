@@ -1,0 +1,142 @@
+<?xml version='1.0' encoding='utf-8'?>
+<erddapDatasets>
+
+
+
+
+
+<cacheMinutes />                                      
+<decompressedCacheMaxGB />                  
+<decompressedCacheMaxMinutesOld />  
+<drawLandMask />                                     
+<emailDiagnosticsToErdData />           
+<graphBackgroundColor />                     
+<ipAddressMaxRequests />                     
+<ipAddressMaxRequestsActive />         
+<ipAddressUnlimited />                         
+<loadDatasetsMinMinutes>1</loadDatasetsMinMinutes>               
+<loadDatasetsMaxMinutes />                 
+<logLevel /> 
+<nGridThreads />                                     
+<nTableThreads />                                   
+<partialRequestMaxBytes />                 
+<partialRequestMaxCells />                 
+<slowDownTroubleMillis />                   
+<unusualActivity />                               
+<updateMaxEvents />                               
+
+<startHeadHtml5 />                                
+<endBodyHtml5 />
+<standardLicense />
+<standardContact />
+<standardDataLicenses />
+<standardDisclaimerOfEndorsement />
+<standardDisclaimerOfExternalLinks />
+<standardGeneralDisclaimer />
+
+<standardPrivacyPolicy>
+&lt;br&gt;&amp;nbsp;
+&lt;hr&gt;
+&lt;h2&gt;&lt;a class="selfLink" id="privacyPolicy" href="#privacyPolicy" rel="help"&gt;Privacy Policy&lt;/a&gt;&lt;/h2&gt;
+ERDDAP follows 
+&lt;a rel="bookmark" href="https://www.noaa.gov/protecting-your-privacy"
+  &gt;NOAA's Privacy Policy Guidelines&lt;/a&gt;.
+</standardPrivacyPolicy>
+
+
+
+<startBodyHtml5>
+&lt;body&gt;
+&lt;table class="compact nowrap" style="width:100%; background-color:#128CB5;"&gt;
+  &lt;tr&gt;
+    &lt;td style="text-align:center; width:180px;"&gt;&lt;a rel="bookmark"
+      href="https://backyardbuoys.org/"&gt;&lt;img
+      title="Backyard Buoys"
+      src="https://backyardbuoys.org/wp-content/themes/byb/images/logo-white-text.svg" alt="Backyard Buoys"
+      width="135" height="50"
+      style="vertical-align:middle;"&gt;&lt;/a&gt;&lt;/td&gt;
+    &lt;td style="text-align:left; font-size:x-large; color:#FFFFFF; "&gt;
+      &lt;strong&gt;Backyard Buoys ERDDAP&#8482; Server&lt;/strong&gt;
+      &lt;br&gt;&lt;small&gt;&lt;small&gt;&lt;small&gt;Access To Backyard Buoys Data&lt;/small&gt;&lt;/small&gt;&lt;/small&gt;
+      &lt;/td&gt;
+    &lt;td style="text-align:center; width:180px;"&gt;&lt;a rel="bookmark"
+      href="https://www.nsf.gov/"&gt;&lt;img
+      title="NSF Convergence Accelerator"
+      src="https://backyardbuoys.org/wp-content/themes/byb/images/CA_Logo_White.png" alt="NSF"
+      width="194" height="50"
+      style="vertical-align:middle;"&gt;&lt;/a&gt;&lt;/td&gt;
+    &lt;td style="text-align:center; width:180px;"&gt;&lt;a rel="bookmark"
+      href="https://ioos.noaa.gov/"&gt;&lt;img
+      title="Integrated Ocean Observing System"
+      src="https://cdn.ioos.noaa.gov/media/2017/12/IOOS_Emblem_Secondary_B_RGB.jpg" alt="IOOS"
+      width="128" height="50"
+      style="vertical-align:middle;"&gt;&lt;/a&gt;&lt;/td&gt;
+    &lt;td style="text-align:right; font-size:small;"&gt;
+      &amp;loginInfo; | &amp;language; &amp;nbsp; &amp;nbsp;
+      &lt;br&gt;&amp;BroughtToYouBy;
+      &lt;a title="Backyard Buoys" rel="bookmark"
+      href="https://backyardbuoys.org/"&gt;Backyard Buoys&lt;/a&gt;
+      &lt;a title="Integrated Ocean Observing System" rel="bookmark"
+      href="https://ioos.noaa.gov/"&gt;IOOS&lt;/a&gt;
+      &lt;a title="National Science Foundation" rel="bookmark"
+      href="https://www.nsf.gov/"&gt;NSF&lt;/a&gt;
+      &amp;nbsp; &amp;nbsp;
+      &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+</startBodyHtml5>
+
+
+<theShortDescriptionHtml> 
+&lt;body&gt;
+
+&lt;h1&gt;Who We Are&lt;/h1&gt;
+&lt;div&gt;The Backyard Buoys&#8482; project enables Indigenous and coastal communities to gather and use wave data, enhancing their blue economy and hazard protection. Leveraging low-cost and scalable marine technology, Backyard Buoys offers a system for community-managed ocean buoys and web apps that simplify data access to complement Indigenous Knowledge.&lt;/div&gt;
+
+&lt;/br&gt;
+
+&lt;video controls="" width="100%" height="auto" poster="https://backyardbuoys.org/wp-content/themes/byb/video/1080.jpg"&gt;
+    &lt;source src="https://backyardbuoys.org/wp-content/themes/byb/video/1080.mp4" type="video/mp4" media="all and (min-width: 800px)"&gt;
+    &lt;source src="https://backyardbuoys.org/wp-content/themes/byb/video/720.mp4" type="video/mp4" media="all and (min-width: 500px)"&gt;
+    &lt;source src="https://backyardbuoys.org/wp-content/themes/byb/video/360.mp4" type="video/mp4"&gt;
+    Your browser does not support the video tag.
+&lt;/video&gt;
+
+&lt;/br&gt;
+&amp;nbsp;
+
+&lt;/br&gt;
+&lt;/br&gt;
+&amp;nbsp;
+&lt;h2&gt;Data Processing:&lt;/h2&gt;
+&lt;div&gt;Backyard Buoys data is collected using &lt;a title="Sofar Spotter" rel="bookmark" href="https://www.sofarocean.com/products/spotter/"&gt;Sofar Spotter&lt;/a&gt; buoys. The data is quality controlled using &lt;a title="IOOS QARTOD" rel="bookmark" href="https://ioos.noaa.gov/project/qartod/"&gt;IOOS QARTOD&lt;/a&gt; tests. Data posted via the Backyard Buoys ERDDAP server is presented with metadata following the &lt;a title="IOOS Metadata Profile 1.2" rel="bookmark" href="https://ioos.github.io/ioos-metadata/ioos-metadata-profile-v1-2.html/"&gt;IOOS Metadata Profile 1.2&lt;/a&gt; Standard.&lt;/div&gt;
+
+&amp;nbsp;
+&lt;h2&gt;Data Citation:&lt;/h2&gt;
+&lt;div&gt;When using Backyard Buoys data, please cite the data as listed in the metadata for each dataset.&lt;/div&gt;
+&lt;/br&gt;
+&lt;div&gt;Example citation format: Institution. Year. dataset_id. Backyard Buoys. dataset_url&lt;/div&gt;
+&lt;div&gt;Example citation:        Quileute Indian Tribe. 2024. backyardbuoys_quileute_south. Backyard Buoys. https://backyardbuoys.org/erddap/backyardbuoys_quileute_south&lt;/div&gt;
+
+
+&lt;/body&gt;
+</theShortDescriptionHtml>
+
+
+
+<requestBlacklist />
+
+
+
+<subscriptionEmailBlacklist>your.email@yourinstitution.edu, some.name@company.com, 
+another.name@company.com, *@example.com</subscriptionEmailBlacklist>
+
+
+
+
+
+
+
+
+
+</erddapDatasets>
