@@ -105,7 +105,7 @@ def get_data_by_location(location_id, vars_to_get = 'ALL', time_start=None, time
     location_data = bb_da.bbapi_get_location_data(location_id, vars_to_get, time_start, time_end)
     if (location_data is None) or (len(location_data) == 0):
         print('No data pulled.')
-        return None
+        return None, None
     
     ###############################################
     # Use location data to build a pandas dataframe
