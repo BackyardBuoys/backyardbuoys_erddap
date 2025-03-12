@@ -44,7 +44,17 @@ def load_all_qc_limits(loc_id):
 
     # Define the data variable names and the 
     # associated limits sheet names
-
+    qc_vars = ['sea_surface_wave_mean_period',
+               'sea_surface_wave_mean_frequency',
+               'sea_surface_wave_from_direction',
+               'sea_surface_wave_directional_spread',
+               'sea_surface_wave_period_at_variance_spectral_density_maximum',
+               'sea_surface_wave_frequency_at_variance_spectral_density_maximum',
+               'sea_surface_wave_from_direction_at_variance_spectral_density_maximum',
+               'sea_surface_wave_directional_spread_at_variance_spectral_density_maximum',
+               'sea_surface_wave_significant_height',
+               'sea_water_temperature']
+    
     bb_vars = ['sea_surface_wave_mean_period',
                'sea_surface_wave_mean_frequency',
                'sea_surface_wave_from_direction',
@@ -62,9 +72,12 @@ def load_all_qc_limits(loc_id):
     # Step through each QC limit sheet name, and parse
     # out the variable limits
     qc_keys = [ii for ii in qc_data['qartod_limits'].keys()]
-    for var in bb_vars:
+    for var_id in range(0,len(bb_vars)):
         
-        qc_lim_inds = np.where([var in ii for ii in qc_data['qartod_limits']])[0]
+        qc_var = qc_vars[var_id]
+        bb_var = bb_vars[var_id]
+        
+        qc_lim_inds = np.where([qc_var in ii for ii in qc_data['qartod_limits']])[0]
         qc_varnames = [qc_keys[ii] for ii in qc_lim_inds]
     
         qc_tests = []
@@ -81,30 +94,30 @@ def load_all_qc_limits(loc_id):
         for qc_test in qc_tests:
             if qc_test == 'gross_range_test':
                 var_dict['gross_range_test'] = {
-                    'suspect_span': [float(qc_data['qartod_limits'][var+'_gross_range_test_suspect_min']),
-                                     float(qc_data['qartod_limits'][var+'_gross_range_test_suspect_max'])],
-                    'fail_span': [float(qc_data['qartod_limits'][var+'_gross_range_test_fail_min']),
-                                  float(qc_data['qartod_limits'][var+'_gross_range_test_fail_max'])]
+                    'suspect_span': [float(qc_data['qartod_limits'][qc_var+'_gross_range_test_suspect_min']),
+                                     float(qc_data['qartod_limits'][qc_var+'_gross_range_test_suspect_max'])],
+                    'fail_span': [float(qc_data['qartod_limits'][qc_var+'_gross_range_test_fail_min']),
+                                  float(qc_data['qartod_limits'][qc_var+'_gross_range_test_fail_max'])]
                 }
             elif qc_test == 'spike_test':
                 var_dict['spike_test'] = {
-                    'suspect_threshold': float(qc_data['qartod_limits'][var+'_spike_test_suspect']),
-                    'fail_threshold': float(qc_data['qartod_limits'][var+'_spike_test_fail'])
+                    'suspect_threshold': float(qc_data['qartod_limits'][qc_var+'_spike_test_suspect']),
+                    'fail_threshold': float(qc_data['qartod_limits'][qc_var+'_spike_test_fail'])
                 }
             elif qc_test == 'rate_of_change_test':
                 var_dict['rate_of_change_test'] = {
-                    'threshold': float(qc_data['qartod_limits'][var+'_rate_of_change_test_threshold'])
+                    'threshold': float(qc_data['qartod_limits'][qc_var+'_rate_of_change_test_threshold'])
                 }
             elif qc_test == 'flat_line_test':
                 var_dict['flat_line_test'] = {
-                    'tolerance': float(qc_data['qartod_limits'][var+'_flat_line_test_tolerance']),
-                    'suspect_threshold': float(qc_data['qartod_limits'][var+'_flat_line_test_suspect']),
-                    'fail_threshold': float(qc_data['qartod_limits'][var+'_flat_line_test_fail'])
+                    'tolerance': float(qc_data['qartod_limits'][qc_var+'_flat_line_test_tolerance']),
+                    'suspect_threshold': float(qc_data['qartod_limits'][qc_var+'_flat_line_test_suspect']),
+                    'fail_threshold': float(qc_data['qartod_limits'][qc_var+'_flat_line_test_fail'])
 
                 }
 
-        qc_dict[var] = {}
-        qc_dict[var]['qartod'] = var_dict
+        qc_dict[bb_var] = {}
+        qc_dict[bb_var]['qartod'] = var_dict
         
     return qc_dict
 
@@ -129,7 +142,7 @@ def load_all_qc_limits_excel(loc_id):
                'peak_wave_direction',
                'peak_wave_directional_spread',
                'surface_wave_significant_height',
-               'sea_surface_temperature']
+               'sea_water_temperature']
 
     bb_vars = ['sea_surface_wave_mean_period',
                'sea_surface_wave_mean_frequency',

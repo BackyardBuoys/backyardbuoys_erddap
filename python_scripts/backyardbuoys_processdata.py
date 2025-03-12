@@ -110,6 +110,64 @@ def get_data_by_location(location_id, vars_to_get = 'ALL', time_start=None, time
     ###############################################
     # Use location data to build a pandas dataframe
     
+    def append_newvar(tot_dat, test_dat):
+        
+        # This function is used to append on each new variable 
+        # to the total dataframe
+        
+        if test_dat is None:
+            return tot_dat
+        elif (tot_dat is None) and (test_dat is not None):
+            tot_data = test_dat.copy()
+            return tot_dat
+        
+        # Check that the time stamps on the new data and the existing extracted data match.
+        # Store the matching indices and non-matching indices separately
+        basematchinds = []
+        matchinds = []
+        nonmatchinds = []
+        if len(test_dat) > 1:
+            for ii in range(0,len(test_dat)):
+                if any(np.logical_and(tot_dat.pt_id == 
+                                      test_dat.pt_id.to_numpy().squeeze()[ii],
+                                      tot_dat.platform_id == 
+                                      test_dat.platform_id.to_numpy().squeeze()[ii])):
+
+                    basematchinds.append(np.where(np.logical_and(tot_dat.pt_id == 
+                                                                 test_dat.pt_id.to_numpy().squeeze()[ii],
+                                                                 tot_dat.platform_id == 
+                                                                 test_dat.platform_id.to_numpy().squeeze()[ii]))[0][0])
+                    matchinds.append(ii)
+                else:
+                    nonmatchinds.append(ii)
+
+
+            # If all of the indices match, add the data directly to the dataframe
+            if len(matchinds) == len(tot_dat):
+                tot_dat.loc[basematchinds,varname] = test_dat.loc[matchinds,varname].to_numpy().squeeze()
+            else:
+                # If any indices do not match...
+
+                # ...first add all the matching indices in the right location
+                if len(matchinds) > 0:
+                    tot_dat.loc[basematchinds,varname] = test_dat.loc[matchinds,varname].to_numpy().squeeze()
+
+                # ..., and then append on the non-matching indices, 
+                # filling with NaNs where necessary
+                if len(nonmatchinds) > 0:
+                    if all([not(ii == varname) for ii in tot_dat.columns]):
+                        print('   ...Variable does not yet exist: ', varname)
+                        tot_dat.loc[:,varname] = np.nan*np.ones(len(tot_dat))
+                    tot_dat = pd.concat([tot_dat, 
+                                         test_dat.iloc[nonmatchinds,:]]).reset_index(drop=True)
+                    print('   ...Some mismatched for ' + varname + ': ' + str(len(nonmatchinds)) + ' points') 
+
+
+        elif len(test_dat) == 1:
+            tot_dat.loc[0,varname] = test_dat.loc[0,varname]
+
+        return tot_dat
+    
     # Extract out the variable data from the location data
     loc_data_topds = {}
     for varname in location_data.keys():
@@ -125,64 +183,48 @@ def get_data_by_location(location_id, vars_to_get = 'ALL', time_start=None, time
     varnames = [ii for ii in loc_data_topds.keys()]
     
     # Take each variables data, and put it into a dataframe
-    total_data = loc_data_topds[varnames[0]]['data'].copy()
+    # Each variable is split out by whether it is on the regular
+    # wave buoy (i.e., at depth = 0), or is a smart mooring sensor
+    # (i.e., at a depth != 0)
+    if any(loc_data_topds[varnames[0]]['data']['depth'] != 0):
+        test_data = loc_data_topds[varnames[0]]['data'].copy()
+        
+        total_data = test_data[test_data['depth'] == 0].reset_index(drop=True)
+        smart_data = test_data[test_data['depth'] != 0].reset_index(drop=True)
+    else:
+        total_data = loc_data_topds[varnames[0]]['data'].copy()
+        smart_data = None
+    
     # Create a "point ID", created as a combination of
     # data timestamp and depth
-    total_data['pt_id'] = [str(total_data['timestamp'][ii]) + '_' + str(total_data['depth'][ii])
+    total_data['pt_id'] = [str(total_data['timestamp'][ii]) 
                            for ii in range(0,len(total_data))]
     
+    # Step through all additional variables, and append them
+    # to the total data dataframes
     for varname in varnames[1:]:
         # Extract out the data
-        test_data = loc_data_topds[varname]['data'].copy()
+        alltest_data = loc_data_topds[varname]['data'].copy()
+        
         # Create a "point ID", created as a combination of
         # data timestamp and depth
-        test_data['pt_id'] = [str(test_data['timestamp'][ii]) + '_' + str(test_data['depth'][ii])
-                                  for ii in range(0,len(test_data))]
-
-        # Check that the time stamps on the new data and the existing extracted data match.
-        # Store the matching indices and non-matching indices separately
-        basematchinds = []
-        matchinds = []
-        nonmatchinds = []
-        if len(test_data) > 1:
-            for ii in range(0,len(test_data)):
-                if any(np.logical_and(total_data.pt_id == 
-                                      test_data.pt_id.to_numpy().squeeze()[ii],
-                                      total_data.platform_id == 
-                                      test_data.platform_id.to_numpy().squeeze()[ii])):
-
-                    basematchinds.append(np.where(np.logical_and(total_data.pt_id == 
-                                                                 test_data.pt_id.to_numpy().squeeze()[ii],
-                                                                 total_data.platform_id == 
-                                                                 test_data.platform_id.to_numpy().squeeze()[ii]))[0][0])
-                    matchinds.append(ii)
-                else:
-                    nonmatchinds.append(ii)
-
-
-            # If all of the indices match, add the data directly to the dataframe
-            if len(matchinds) == len(total_data):
-                total_data.loc[basematchinds,varname] = test_data.loc[matchinds,varname].to_numpy().squeeze()
-            else:
-                # If any indices do not match...
-
-                # ...first add all the matching indices in the right location
-                if len(matchinds) > 0:
-                    total_data.loc[basematchinds,varname] = test_data.loc[matchinds,varname].to_numpy().squeeze()
-
-                # ..., and then append on the non-matching indices, 
-                # filling with NaNs where necessary
-                if len(nonmatchinds) > 0:
-                    if all([not(ii == varname) for ii in total_data.columns]):
-                        print('   ...Variable does not yet exist: ', varname)
-                        total_data.loc[:,varname] = np.nan*np.ones(len(total_data))
-                    total_data = pd.concat([total_data, 
-                                            test_data.iloc[nonmatchinds,:]]).reset_index(drop=True)
-                    print('   ...Some mismatched for ' + varname + ': ' + str(len(nonmatchinds)) + ' points') 
-
-
-        elif len(test_data) == 1:
-            total_data.loc[0,varname] = test_data.loc[0,varname]
+        alltest_data['pt_id'] = [str(alltest_data['timestamp'][ii]) 
+                                 for ii in range(0,len(alltest_data))]
+        
+        # Take each variables data, and put it into a dataframe
+        if any(alltest_data != 0):
+            test_data = alltest_data[alltest_data['depth'] == 0].reset_index(drop=True)
+            smarttest_data = alltest_data[alltest_data['depth'] != 0].reset_index(drop=True)
+        else:
+            test_data = alltest_data.copy()
+            smarttest_data = None
+            
+        total_data = append_newvar(total_data, test_data)
+        smart_data = append_newvar(smart_data, smarttest_data)
+        
+        
+        
+        
 
             
     
@@ -202,15 +244,15 @@ def get_data_by_location(location_id, vars_to_get = 'ALL', time_start=None, time
     
     # For any duplicate point IDs, combine the values,
     # and drop the duplicate
-    if any(total_data.duplicated(subset='pt_id')):
-        dupinds = np.where(total_data.duplicated(subset='pt_id'))[0]
-        for dupind in dupinds:
-            if dupind < len(total_data)-1:
-                total_data.iloc[dupind,:].combine_first(total_data.iloc[dupind+1,:])
-        total_data = total_data.drop_duplicates(subset=['pt_id'],keep='first').reset_index(drop=True)
+    #if any(total_data.duplicated(subset='pt_id')):
+    #    dupinds = np.where(total_data.duplicated(subset='pt_id'))[0]
+    #    for dupind in dupinds:
+    #        if dupind < len(total_data)-1:
+    #            total_data.iloc[dupind,:].combine_first(total_data.iloc[dupind+1,:])
+    #    total_data = total_data.drop_duplicates(subset=['pt_id'],keep='first').reset_index(drop=True)
             
     
-    return total_data
+    return total_data, smart_data
 
 
 # In[ ]:
@@ -326,7 +368,8 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
         ds_old = None
     
     # Load in the data from the Backyard Buoys data API
-    ds = get_data_by_location(loc_id, time_start=lasttime)
+    # Note, that for now, nothing is done with the smart mooring data (i.e., "ds_smart")
+    ds, ds_smart = get_data_by_location(loc_id, time_start=lasttime)
     if ds is None:
         print('   Return without processing any data')
         return
