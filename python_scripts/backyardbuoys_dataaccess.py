@@ -111,7 +111,71 @@ def bbapi_get_platform_data(platform_id):
 # In[ ]:
 
 
-def smartmooring(params, headers, smart_params):
+def get_buoydata_sofarapi(basedir, spotterID, timeStart, apikey_file):
+    
+    # Download data from the Sofar API
+    headers = {}
+    with open(os.path.join(basedir,apikey_file)) as f:
+        headers["token"] = f.read().strip()
+        
+    params = {
+        "spotterId": spotterID,
+        "limit": "500",
+        "startDate": timeStart,
+        "includeWaves": "true",
+        "includeWindData": "false",
+        "includeSurfaceTempData": "true",
+        "includeFrequencyData": "false",
+        "includeDirectionalMoments": "false",
+        "includePartitionData": "false",
+    }
+    
+    api_url = "https://api.sofarocean.com/api/wave-data"
+    response = requests.get(url=api_url, headers=headers, params=params)
+    
+    if response.status_code == 400:
+        print('API Data request - status code 400: Client error - Bad request')
+        print('Return with no data')
+        ds = None
+        return ds
+    elif response.status_code == 401:
+        print('API Data request - status code 401: Client error - Unauthorized')
+        print('Return with no data')
+        ds = None
+        return ds
+    elif response.status_code == 404:
+        print('API Data request - status code 404: Client error - Not found')
+        print('Return with no data')
+        ds = None
+        return ds
+    elif response.status_code == 500:
+        print('API Data request - status code 500: Server error')
+        print('Return with no data')
+        ds = None
+        return ds
+
+    lines = np.array(response.json()["data"]["waves"])
+    if len(lines) == 0:
+        ds = None
+        return ds
+
+
+# In[ ]:
+
+
+def smartmooring(basedir, apikey_file, spotterID, startDate, endDate):
+    
+    # Download data from the Sofar API
+    headers = {}
+    with open(os.path.join(basedir,apikey_file)) as f:
+        headers["token"] = f.read().strip()
+        
+    # Set the smart mooring parameters needed for download
+    smart_params = {}
+    smart_params['spotterId'] = spotterID
+    smart_params['startDate'] = startDate
+    smart_params['endDate'] = endDate
+
     smart_url = "https://api.sofarocean.com/api/sensor-data"
     smart_response = requests.get(url=smart_url, headers=headers, params=smart_params)
     
@@ -223,42 +287,6 @@ def smartmooring(params, headers, smart_params):
 
     return xr.merge([meanpres1, meanpres2, 
                      meantemp1, meantemp2])
-
-
-# In[ ]:
-
-
-def get_buoydata_sofarapi(basedir, site, apikey):
-    
-    # Download data from the Sofar API
-    api_url = "https://api.sofarocean.com/api/wave-data"
-    response = requests.get(url=api_url, headers=headers, params=params)
-    
-    if response.status_code == 400:
-        print('API Data request - status code 400: Client error - Bad request')
-        print('Return with no data')
-        ds = None
-        return ds
-    elif response.status_code == 401:
-        print('API Data request - status code 401: Client error - Unauthorized')
-        print('Return with no data')
-        ds = None
-        return ds
-    elif response.status_code == 404:
-        print('API Data request - status code 404: Client error - Not found')
-        print('Return with no data')
-        ds = None
-        return ds
-    elif response.status_code == 500:
-        print('API Data request - status code 500: Server error')
-        print('Return with no data')
-        ds = None
-        return ds
-
-    lines = np.array(response.json()["data"]["waves"])
-    if len(lines) == 0:
-        ds = None
-        return ds
 
 
 # In[ ]:
