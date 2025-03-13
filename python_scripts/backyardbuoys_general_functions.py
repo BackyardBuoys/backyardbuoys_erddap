@@ -70,9 +70,9 @@ def load_bbapi_info_json():
     
     curdir = os.getcwd()
     if '/home/stravis/' in curdir:
-        basedir = '/home/stravis/backyardbuoys_files/python_scripts/bbapi_jsons'
+        basedir = '/home/stravis/backyardbuoys_files/python_scripts/info_jsons'
     else:
-        basedir = 'C:/Users/APLUser/NANOOS/Backyard_Buoys/python_scripts/bbapi_jsons'
+        basedir = 'C:/Users/APLUser/NANOOS/Backyard_Buoys/python_scripts/info_jsons'
     
     with open(os.path.join(basedir, 'bbapi_info.json'), 'r') as f:
         bbapiinfo = json.load(f)
