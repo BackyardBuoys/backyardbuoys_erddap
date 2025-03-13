@@ -59,3 +59,23 @@ def load_googleinfo_json():
     
     return googleinfo
 
+
+# In[ ]:
+
+
+def load_bbapi_info_json():
+    
+    import json
+    import os
+    
+    curdir = os.getcwd()
+    if '/home/stravis/' in curdir:
+        basedir = '/home/stravis/backyardbuoys_files/python_scripts/bbapi_jsons'
+    else:
+        basedir = 'C:/Users/APLUser/NANOOS/Backyard_Buoys/python_scripts/bbapi_jsons'
+    
+    with open(os.path.join(basedir, 'bbapi_info.json'), 'r') as f:
+        bbapiinfo = json.load(f)
+    
+    return bbapiinfo
+

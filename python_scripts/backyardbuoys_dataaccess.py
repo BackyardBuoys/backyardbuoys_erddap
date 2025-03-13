@@ -26,6 +26,8 @@ from ioos_qc.config import Config
 from ioos_qc.streams import PandasStream
 from ioos_qc.stores import PandasStore
 
+import backyardbuoys_general_functions as bb   
+
 
 # # Backyard Buoys API
 
@@ -34,7 +36,9 @@ from ioos_qc.stores import PandasStore
 
 def bbapi_get_locations():
     
-    api_url = "https://data.backyardbuoys.org/get_locations"
+    bbinfo = bb.load_bbapi_info_json()
+    api_url = bbinfo['get_locations']
+    
     response = requests.get(url=api_url)
     lines = np.array(response.json())
     
@@ -52,7 +56,9 @@ def bbapi_get_locations():
 
 def bbapi_get_location_data(loc_id, vars_to_get = 'ALL', time_start=None, time_end=None):
     
-    api_url = "https://data.backyardbuoys.org/get_location_data"
+    bbinfo = bb.load_bbapi_info_json()
+    api_url = bbinfo['get_location_data']
+    
     params = {
             "loc_id": loc_id,
             "var_id": vars_to_get
@@ -94,7 +100,9 @@ def bbapi_get_location_data(loc_id, vars_to_get = 'ALL', time_start=None, time_e
 def bbapi_get_platform_data(platform_id):
     
     # Platform ID example: 'SPOT-30880C'
-    api_url = "https://data.backyardbuoys.org/get_platform_data"
+    bbinfo = bb.load_bbapi_info_json()
+    api_url = bbinfo['get_platform_data']
+    
     params = {
         "platform_id": platform_id,
         "var_id": 'ALL'
