@@ -17,7 +17,6 @@
         &amp;time&gt;=max(time)-30days
 	&amp;.draw=markers
         &amp;.vars=time|sea_surface_wave_significant_height|sea_surface_wave_mean_period
-        &amp;.yRange=0|8|true
         &amp;.marker=11|3
     </defaultGraphQuery>
     <addAttributes>
