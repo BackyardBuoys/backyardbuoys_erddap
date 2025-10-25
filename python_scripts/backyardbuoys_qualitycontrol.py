@@ -23,6 +23,7 @@ import matplotlib
 from matplotlib import pyplot as plt
 
 import backyardbuoys_general_functions as bb
+import backyardbuoys_processdata as bb_process
 
 import ioos_qc
 from ioos_qc import qartod
@@ -118,6 +119,73 @@ def load_all_qc_limits(loc_id):
 
         qc_dict[bb_var] = {}
         qc_dict[bb_var]['qartod'] = var_dict
+        
+    return qc_dict
+
+
+# In[ ]:
+
+
+def load_all_smart_qc_limits(loc_id, smart_vars):
+    
+    basedir = bb.get_datadir()
+    qc_file = loc_id + '_smart_qartod.json'
+    qc_path = os.path.join(basedir, loc_id, 'metadata', qc_file)
+    with open(qc_path) as qc_json:
+        qc_data = json.load(qc_json)
+        
+
+    # Initialize an empty dictionary to hold all the limits
+    qc_dict = {}
+
+    # Step through each QC limit sheet name, and parse
+    # out the variable limits
+    qc_keys = [ii for ii in qc_data['qartod_limits'].keys()]
+    for var_id in range(0,len(smart_vars)):
+        
+        smart_var = smart_vars[var_id]
+        
+        qc_lim_inds = np.where([smart_var in ii for ii in qc_data['qartod_limits']])[0]
+        qc_varnames = [qc_keys[ii] for ii in qc_lim_inds]
+    
+        qc_tests = []
+        if any(['gross_range_test' in ii for ii in qc_varnames]):
+            qc_tests.append('gross_range_test')
+        if any(['spike_test' in ii for ii in qc_varnames]):
+            qc_tests.append('spike_test')
+        if any(['rate_of_change_test' in ii for ii in qc_varnames]):
+            qc_tests.append('rate_of_change_test')
+        if any(['flat_line_test' in ii for ii in qc_varnames]):
+            qc_tests.append('flat_line_test')
+
+        var_dict = {}
+        for qc_test in qc_tests:
+            if qc_test == 'gross_range_test':
+                var_dict['gross_range_test'] = {
+                    'suspect_span': [float(qc_data['qartod_limits'][smart_var+'_gross_range_test_suspect_min']),
+                                     float(qc_data['qartod_limits'][smart_var+'_gross_range_test_suspect_max'])],
+                    'fail_span': [float(qc_data['qartod_limits'][smart_var+'_gross_range_test_fail_min']),
+                                  float(qc_data['qartod_limits'][smart_var+'_gross_range_test_fail_max'])]
+                }
+            elif qc_test == 'spike_test':
+                var_dict['spike_test'] = {
+                    'suspect_threshold': float(qc_data['qartod_limits'][smart_var+'_spike_test_suspect']),
+                    'fail_threshold': float(qc_data['qartod_limits'][smart_var+'_spike_test_fail'])
+                }
+            elif qc_test == 'rate_of_change_test':
+                var_dict['rate_of_change_test'] = {
+                    'threshold': float(qc_data['qartod_limits'][smart_var+'_rate_of_change_test_threshold'])
+                }
+            elif qc_test == 'flat_line_test':
+                var_dict['flat_line_test'] = {
+                    'tolerance': float(qc_data['qartod_limits'][smart_var+'_flat_line_test_tolerance']),
+                    'suspect_threshold': float(qc_data['qartod_limits'][smart_var+'_flat_line_test_suspect']),
+                    'fail_threshold': float(qc_data['qartod_limits'][smart_var+'_flat_line_test_fail'])
+
+                }
+
+        qc_dict[smart_var] = {}
+        qc_dict[smart_var]['qartod'] = var_dict
         
     return qc_dict
 
@@ -396,16 +464,19 @@ def run_qartod_tests(var_df, sensor, config):
 # In[1]:
 
 
-def process_qartod_tests(ds, sensor_names, qc_limits):
+def process_qartod_tests(ds, sensor_names, qc_limits, smartflag=False):
     
-    qartod_valid_sensors = ['sea_surface_wave_significant_height','sea_surface_temperature', 
-                            'sea_surface_wave_period_at_variance_spectral_density_maximum', 
-                            'sea_surface_wave_from_direction_at_variance_spectral_density_maximum', 
-                            'sea_surface_wave_directional_spread_at_variance_spectral_density_maximum',
-                            'sea_surface_wave_mean_period', 
-                            'sea_surface_wave_from_direction', 'sea_surface_wave_directional_spread',
-                            'sea_surface_wave_frequency_at_variance_spectral_density_maximum', 
-                            'sea_surface_wave_mean_frequency']
+    if smartflag:
+        qartod_valid_sensors = bb_process.get_valid_smart_vars(ds)
+    else:
+        qartod_valid_sensors = ['sea_surface_wave_significant_height','sea_surface_temperature', 
+                                'sea_surface_wave_period_at_variance_spectral_density_maximum', 
+                                'sea_surface_wave_from_direction_at_variance_spectral_density_maximum', 
+                                'sea_surface_wave_directional_spread_at_variance_spectral_density_maximum',
+                                'sea_surface_wave_mean_period', 
+                                'sea_surface_wave_from_direction', 'sea_surface_wave_directional_spread',
+                                'sea_surface_wave_frequency_at_variance_spectral_density_maximum', 
+                                'sea_surface_wave_mean_frequency']
     qartod_df = []
     NT = ds['time'].size
     

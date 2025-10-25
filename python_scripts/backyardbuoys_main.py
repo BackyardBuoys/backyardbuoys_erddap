@@ -182,8 +182,8 @@ def main():
         
         # If the rebuildFlag is set to true, but the process is not
         # "allData", then the rebuildFlag will be set to false
-        if not(processName == 'addData') and rebuildFlag:
-            print('The rebuild flag can only be used for the "addData" process.')
+        if not((processName == 'addData') or (processName == 'addMetadata')) and rebuildFlag:
+            print('The rebuild flag can only be used for the "addData" or "addMetadata" process.')
             print('Flag will be set to "false", and process will continue.')
             rebuildFlag = False
         
@@ -293,9 +293,9 @@ def main():
         
     elif processName == 'addMetadata':
         if locName.lower() == 'all':
-            bb_meta.make_all_metadata()
+            bb_meta.make_projects_metadata(rebuild_flag=rebuildFlag)
         else:
-            bb_meta.make_project_metadata(locName)
+            bb_meta.make_projects_metadata(locName, rebuild_flag=rebuildFlag)
         
         
     else:

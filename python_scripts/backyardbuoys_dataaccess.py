@@ -34,10 +34,12 @@ import backyardbuoys_general_functions as bb
 # In[ ]:
 
 
-def bbapi_get_locations():
+def bbapi_get_locations(recentFlag=False):
     
     bbinfo = bb.load_bbapi_info_json()
     api_url = bbinfo['get_locations']
+    if recentFlag:
+        api_url = api_url + '?newest_data=true'
     
     response = requests.get(url=api_url)
     lines = np.array(response.json())
@@ -54,7 +56,8 @@ def bbapi_get_locations():
 # In[ ]:
 
 
-def bbapi_get_location_data(loc_id, vars_to_get = 'ALL', time_start=None, time_end=None):
+def bbapi_get_location_data(loc_id, vars_to_get = 'ALL', 
+                            time_start=None, time_end=None):
     
     bbinfo = bb.load_bbapi_info_json()
     api_url = bbinfo['get_location_data']
@@ -92,6 +95,64 @@ def bbapi_get_location_data(loc_id, vars_to_get = 'ALL', time_start=None, time_e
         location_data[var_name]['data'] = extract_data
         
     return location_data
+
+
+# In[ ]:
+
+
+def bbapi_get_platforms(inactiveFlag=False, retiredFlag=False, 
+                        offlineFlag=False, allplatsFlag=False):
+    
+    # Check flags:
+    if allplatsFlag and (inactiveFlag or retiredFlag or offlineFlag):
+        inactiveFlag = False
+        retiredFlag = False
+        offlineFlag = False
+    
+    # Platform ID example: 'SPOT-30880C'
+    bbinfo = bb.load_bbapi_info_json()
+    api_url = bbinfo['get_platforms']
+    if inactiveFlag:
+        api_url = api_url + '?status=inactive'
+    elif retiredFlag:
+        api_url = api_url + '?status=retired'
+    elif offlineFlag:
+        api_url = api_url + '?status=offline'
+    
+    response = requests.get(url=api_url)
+    if len(response.json()) == 0:
+        if inactiveFlag:
+            print('No inactive platforms found')
+        elif retiredFlag:
+            print('No retired platforms found')
+        else:
+            print('No active platforms found')
+        return None
+    lines = np.array(response.json())
+        
+        
+    
+    plat_data = {}
+    for line in lines:
+        plat_data[line['platform_id']] = {}
+        for item in line:
+            plat_data[line['platform_id']][item] = line[item]
+            
+    if allplatsFlag:
+        inactive_plats = bbapi_get_platforms(inactiveFlag=True)
+        if inactive_plats is not None:
+            for key in inactive_plats.keys():
+                plat_data[key] = inactive_plats[key]
+        retired_plats = bbapi_get_platforms(retiredFlag=True)
+        if retired_plats is not None:
+            for key in retired_plats.keys():
+                plat_data[key] = retired_plats[key]
+        offline_plats = bbapi_get_platforms(offlineFlag=True)
+        if offline_plats is not None:
+            for key in offline_plats.keys():
+                plat_data[key] = offline_plats[key]
+
+    return plat_data
 
 
 # In[ ]:
@@ -242,7 +303,7 @@ def smartmooring(basedir, apikey_file, spotterID, startDate, endDate):
         
         # Add temperature from sensor position 1
         if (
-            line["data_type_name"] == "sofar_temperature_12bits"
+            line["unit_type"] == "temperature"
             and line["sensorPosition"] == 1
         ):
             mttime1.append(line["timestamp"])
@@ -250,7 +311,7 @@ def smartmooring(basedir, apikey_file, spotterID, startDate, endDate):
         
         # Add temperature from sensor position 2    
         if (
-            line["data_type_name"] == "sofar_temperature_12bits"
+            line["unit_type"] == "temperature"
             and line["sensorPosition"] == 2
         ):
             mttime2.append(line["timestamp"])
