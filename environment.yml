@@ -1,0 +1,18 @@
+name: backyardbuoys
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - xarray
+  - netcdf4
+  - requests
+  - pip
+  - pip:
+    - ioos_qc
+    - google-auth
+    - google-auth-oauthlib
+    - google-auth-httplib2
+    - google-api-python-client
