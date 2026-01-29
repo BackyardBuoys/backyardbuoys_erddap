@@ -539,16 +539,16 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
         infodict = None
 
     check_spotters = False
-    if 'spotter_data' in infodict.keys():        
+    if infodict is not None and 'spotter_data' in infodict.keys():        
         spotter_list = []
         valid_spotters = []
-        if infodict is not None:
-            spotter_list = [ii.strip() for ii in infodict['spotter_ids'].split(',')]    
-            for spotter in spotter_list:
-                if ((infodict['spotter_data'][spotter]['can_data_archive'] == 'yes')
-                    and
-                    (infodict['spotter_data'][spotter]['can_share_ndbc_nws'] == 'yes')):
-                    valid_spotters.append(spotter)
+        # Filter out empty strings from spotter list
+        spotter_list = [ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()]    
+        for spotter in spotter_list:
+            if ((infodict['spotter_data'][spotter]['can_data_archive'] == 'yes')
+                and
+                (infodict['spotter_data'][spotter]['can_share_ndbc_nws'] == 'yes')):
+                valid_spotters.append(spotter)
         check_spotters = True
 
     
@@ -1496,7 +1496,7 @@ def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False):
     if not(os.path.exists(metadir)):
         print(loc_id + ': No metadata exists for this project.')
         print('Try to make the meta data for project: ' + loc_id)
-        meta_success = bb_meta.make_project_metadata(loc_id, addspotterFlag)
+        meta_success = bb_meta.make_projects_metadata(loc_id, addspotterFlag)
         if not(meta_success):
             print('Unable to make the data file for this project')
             return False
