@@ -14,6 +14,9 @@ The BackyardBuoys ERDDAP project manages the data pipeline and ERDDAP server con
 - **Metadata Management**: Pulls metadata from Google Sheets and generates standardized JSON files
 - **ERDDAP Integration**: Automatically generates and updates ERDDAP dataset XML configurations
 - **Multi-location Support**: Manages data from multiple buoy deployment locations
+- **Robust Error Handling**: Comprehensive API error handling and data validation
+- **Performance Optimized**: Vectorized operations for efficient large dataset processing
+- **Well-Documented Code**: Comprehensive inline comments explaining complex logic
 
 ## Project Structure
 
@@ -31,9 +34,12 @@ backyardbuoys_erddap/
 │   ├── backyardbuoys_build_metadata.py    # Metadata compilation from Google Sheets
 │   ├── backyardbuoys_generate_xml.py      # ERDDAP XML generation
 │   ├── backyardbuoys_general_functions.py # Utility functions
+│   ├── bb_dirs.json                       # Directory configuration
 │   └── info_jsons/
 │       ├── bbapi_info.json     # Backyard Buoys API endpoints
-│       └── google_info.json    # Google Sheets configuration
+│       ├── google_info.json    # Google Sheets configuration
+│       └── user_info.json      # User configuration settings
+├── environment.yml             # Conda environment specification
 ├── README.md
 └── LICENSE
 ```
@@ -42,7 +48,8 @@ backyardbuoys_erddap/
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.8 or higher (tested with Python 3.11.5)
+- Anaconda or Miniconda (recommended)
 - Required Python packages:
   - numpy
   - pandas
@@ -63,7 +70,13 @@ git clone https://github.com/BackyardBuoys/backyardbuoys_erddap.git
 cd backyardbuoys_erddap
 ```
 
-2. Install dependencies:
+2. Create and activate the conda environment:
+```bash
+conda env create -f environment.yml
+conda activate backyardbuoys
+```
+
+   Alternatively, install dependencies manually:
 ```bash
 pip install -r requirements.txt
 ```
@@ -139,6 +152,8 @@ python backyardbuoys_main.py -p addDataset -l quileute_south
 - Queries Backyard Buoys API for location data
 - Retrieves wave parameters and sea surface temperature
 - Handles incremental updates based on existing data
+- Robust error handling for API failures and empty responses
+- Normalizes API responses for consistent processing
 
 ### 3. Quality Control
 - Applies IOOS QARTOD tests:
@@ -223,14 +238,34 @@ backyardbuoys_main.py
         └── backyardbuoys_general_functions.py
 ```
 
+## Recent Improvements (January 2026)
+
+### Bug Fixes
+- **Fixed 0-dimensional array iteration**: Added `np.atleast_1d()` wrapper to handle single-spotter locations
+- **API error handling**: Proper detection and handling of API error responses (`{'error': 'No platforms found'}`)
+- **API response normalization**: Consistent list format for platform data regardless of single/multiple results
+- **Variable return bug**: Fixed critical bug in `append_newvar()` returning wrong variable name
+
+### Performance Optimizations
+- **Vectorized datetime operations**: Replaced manual list comprehensions with `pd.to_datetime()` for significant speed improvements
+- **Datetime format constants**: Centralized date format strings for maintainability
+- **Simplified column checks**: Improved efficiency of dataframe column existence checks
+- **Optimized list operations**: Removed redundant list comprehensions
+
+### Code Quality
+- **Comprehensive inline comments**: Added detailed comments throughout all Python scripts explaining complex logic
+- **Improved code readability**: Enhanced documentation of data processing workflows
+- **Better error messages**: More informative error handling and logging
+
 ## Error Handling
 
 The system includes comprehensive error handling for:
 - Missing metadata files
-- API connection failures
+- API connection failures and error responses
 - Invalid location IDs
-- Data processing errors
+- Data processing errors (including 0-d arrays, missing data)
 - NetCDF file creation issues
+- Single vs. multiple platform scenarios
 
 ## Contributing
 
