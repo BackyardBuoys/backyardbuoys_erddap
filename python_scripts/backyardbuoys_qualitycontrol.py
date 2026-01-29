@@ -586,27 +586,31 @@ def process_qartod_tests(ds, sensor_names, qc_limits, smartflag=False):
 
 def concat_test_results_into_string(temp_qartod_df):
     
-    # Initialize an empty list to store the concatenated qartod results
+    # Initialize array to store concatenated QARTOD results
+    # Each row will contain a multi-digit number representing all test results
     qartod_results = np.zeros(len(temp_qartod_df)).astype(int)
     
-    # Extract out the relevant column names
+    # Get column names for all QC tests (exclude the aggregate rollup)
     qar_cols = temp_qartod_df.columns
-    # Only concatenate the result if it is not the rollup result
+    # Filter out the rollup column - we only want individual test results
     qar_cols = [ii for ii in qar_cols if 'qartod_rollup_qc' not in ii]
     
-    # Loop through each column, and append on the digit of the current
-    # flag
-    # Example, if there are 3 flags (flag 1 = 1, flag 2 = 4, flag 3 = 1),
-    # then the final result should be 141.
-    # To get there, we use 100*flag1 + 10*flag2 + 1*flag3
-    # which is the same as (10^2)*flag1 + (10^1)*flag2 + (10^0)*flag3
-    # The maximum exponent factor is equal to (# of flags - 1)
-    fact = len(qar_cols) - 1
+    # Concatenate test results into a single multi-digit number
+    # Example: If there are 3 tests with results [1, 4, 1],
+    # the final result should be 141 (read left-to-right as test1-test2-test3)
+    # 
+    # Algorithm: Multiply each flag by the appropriate power of 10
+    #   Result = (10^2)*flag1 + (10^1)*flag2 + (10^0)*flag3
+    #          = 100*1 + 10*4 + 1*1 = 141
+    # 
+    # The exponent starts at (number of tests - 1) and decreases
+    fact = len(qar_cols) - 1  # Starting exponent
     for column in qar_cols:
+        # Add this test's contribution: flag_value * 10^exponent
         qartod_results = qartod_results + (temp_qartod_df.loc[:,column].astype(float) * (10**fact)).astype(int)
-        fact = fact - 1
+        fact = fact - 1  # Decrease exponent for next test
      
-    # Change the result from an array into a list
+    # Convert numpy array to Python list for JSON serialization
     qartod_results = [ii for ii in qartod_results]
 
     return qartod_results
@@ -617,22 +621,32 @@ def concat_test_results_into_string(temp_qartod_df):
 
 def add_qc_attrs(ds, df_qc):
     
+    # Create a new xarray Dataset to hold QC variables with proper attributes
     ds_qc = xr.Dataset()
+    
+    # Copy the time dimension from the original dataset
     ds_qc["time"] = xr.DataArray(
             np.array(ds['time']), dims="time"
         )
+    
+    # Add all QC columns as data variables
     for x in df_qc.columns:
         ds_qc[x] = xr.DataArray(
             np.array(df_qc[x]), dims='time'
         )
 
+    # Set standard CF-compliant attributes for each QC variable
+    # Attributes vary based on the type of QC variable
     for x in ds_qc.keys():
+        # Aggregate flag: Overall quality status (worst of all tests)
         if '_qc_agg' in x:
             ds_qc[x].attrs["long_name"] = x
             ds_qc[x].attrs['description'] = 'QARTOD Aggregate flag for ' + x
             ds_qc[x].attrs['flag_values'] = '1, 2, 3, 4, 9'
             ds_qc[x].attrs['flag_meanings'] = 'PASS NOT_EVALUATED SUSPECT FAIL MISSING'
             ds_qc[x].attrs["_FillValue"] = -555
+        
+        # Test string: Multi-digit concatenated test results
         elif '_qc_tests' in x:
             ds_qc[x].attrs["long_name"] = x
             ds_qc[x].attrs['description'] = 'QARTOD Tests performed for ' + x
@@ -640,6 +654,8 @@ def add_qc_attrs(ds, df_qc):
             ds_qc[x].attrs['flag_meanings'] = 'PASS NOT_EVALUATED SUSPECT FAIL MISSING'
             ds_qc[x].attrs['comment'] = '4-character string with results of individual QARTOD tests. 1: Gross Range Test, 2: Spike Test, 3: Flat-line Test, 4: Rate-of-change Test'
             ds_qc[x].attrs["_FillValue"] = -555
+        
+        # Individual test results: Specific test outcomes
         elif '_qartod_gross_range_test' in x:
             ds_qc[x].attrs["long_name"] = x
             ds_qc[x].attrs['description'] = 'QARTOD Gross Range Test performed for ' + x[:x.find('_qartod_gross_range_test')]

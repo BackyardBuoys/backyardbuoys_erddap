@@ -49,14 +49,15 @@ def get_datasetxml_dir():
     """
     
     # Get the current working directory
-    curdir = os.getcwd()
+    basedir = os.path.dirname(__file__)
+
     # Load in the directory info json
-    with open(os.path.join(curdir,'bb_dirs.json'), 'r') as dir_json:
+    with open(os.path.join(basedir,'bb_dirs.json'), 'r') as dir_json:
         dir_info = json.load(dir_json)
     # Get the base directory for the ERDDAP files
-    basedir = dir_info['erddap_files']
+    xmldir = dir_info['erddap_files']
         
-    return basedir
+    return xmldir
 
 
 # In[ ]:
@@ -321,33 +322,31 @@ def add_new_smart_dataset_snip(dataset_dir, main_root, loc_id):
     ###########################################################
     # Append on the new dataset to the main dataset file
 
-    # Get a list of all of the existing dataset names
+    # Build a list of all existing dataset IDs in the XML
     dataset_names = []
     for elem in main_root.findall('dataset'):
         if 'datasetID' in elem.attrib:
             dataset_names.append(elem.attrib['datasetID'])
 
-    # Check that the new dataset snippet does not
-    # already exist, and should be appended to the main root
+    # Check if this dataset already exists in the XML
     snip_dataset_name = snip_root.attrib['datasetID']
-    append_new = True
+    append_new = True  # Assume it's new unless we find it
     if any([ii == snip_dataset_name for ii in dataset_names]):
-        append_new = False
+        append_new = False  # Dataset already exists - will need to replace it
 
-    # Insert the updated snippet into master datasets.xml
+    # Add or update the dataset snippet in the XML
     if append_new:
-        # If the snippet does not exist, append it to the
-        # main root
+        # Dataset doesn't exist yet - just append it
         main_root.append(snip_root)
     else:
-        # Otherwise, find the existing snippet for the
-        # dataset, and remove it first. Then append
-        # on the new snippet.
+        # Dataset exists - remove the old version first, then add the new one
+        # This ensures we always have the most up-to-date dataset configuration
         for elem in main_root.findall('dataset'):
             if 'datasetID' in elem.attrib:
                 if elem.attrib['datasetID'] == snip_dataset_name:
                     print('Remove the existing element for: ' + snip_dataset_name)
-                    main_root.remove(elem)
+                    main_root.remove(elem)  # Remove old version
+        # Append the updated snippet
         main_root.append(snip_root)
     
     # Return the updated main_root
@@ -413,39 +412,38 @@ def add_new_dataset_snip(dataset_dir, main_root, loc_id):
     ###########################################################
     # Append on the new dataset to the main dataset file
 
-    # Get a list of all of the existing dataset names
+    # Build a list of all existing dataset IDs in the XML
     dataset_names = []
     for elem in main_root.findall('dataset'):
         if 'datasetID' in elem.attrib:
             dataset_names.append(elem.attrib['datasetID'])
 
-    # Check that the new dataset snippet does not
-    # already exist, and should be appended to the main root
+    # Check if this dataset already exists in the XML
     snip_dataset_name = snip_root.attrib['datasetID']
-    append_new = True
+    append_new = True  # Assume it's new unless we find it
     if any([ii == snip_dataset_name for ii in dataset_names]):
-        append_new = False
+        append_new = False  # Dataset already exists - will need to replace it
 
-    # Insert the updated snippet into master datasets.xml
+    # Add or update the dataset snippet in the XML
     if append_new:
-        # If the snippet does not exist, append it to the
-        # main root
+        # Dataset doesn't exist yet - just append it
         main_root.append(snip_root)
     else:
-        # Otherwise, find the existing snippet for the
-        # dataset, and remove it first. Then append
-        # on the new snippet.
+        # Dataset exists - remove the old version first, then add the new one
+        # This ensures we always have the most up-to-date dataset configuration
         for elem in main_root.findall('dataset'):
             if 'datasetID' in elem.attrib:
                 if elem.attrib['datasetID'] == snip_dataset_name:
                     print('Remove the existing element for: ' + snip_dataset_name)
-                    main_root.remove(elem)
+                    main_root.remove(elem)  # Remove old version
+        # Append the updated snippet
         main_root.append(snip_root)
         
     
     ########################
     # Smart Mooring Option #
     ########################
+    # If this location has smart mooring sensors, add a separate dataset for them
     if smartmooring:
         add_new_smart_dataset_snip(dataset_dir, main_root, loc_id)
     

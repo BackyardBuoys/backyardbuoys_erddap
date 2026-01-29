@@ -75,9 +75,10 @@ def get_auth_dir():
     """
     
     # Get the current working directory
-    curdir = os.getcwd()
+    basedir = os.path.dirname(__file__)
+
     # Load in the directory info json
-    with open(os.path.join(curdir,'bb_dirs.json'), 'r') as dir_json:
+    with open(os.path.join(basedir,'bb_dirs.json'), 'r') as dir_json:
         dir_info = json.load(dir_json)
     # Get the base directory which contains the authorization tokens
     auth_dir = dir_info['auth_token']
@@ -1120,13 +1121,15 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
     bb_plats = bb_da.bbapi_get_platforms(allplatsFlag=True)
     qc_df = get_all_google_qcdata()
     
-    # Ensure that we are only making metadata for
-    # official Backyard Buoys sites (and not for
-    # "Friends of ...")
-    locs_to_del = []
+    # Filter out non-official Backyard Buoys sites
+    # Only process locations where is_byb='yes' (excludes "Friends of..." sites)
+    locs_to_del = []  # Track locations to remove
     for loc in bb_locs:
+        # Check if this is an official Backyard Buoys site
         if not(bb_locs[loc]['is_byb'] == 'yes'):
-            locs_to_del.append(loc)
+            locs_to_del.append(loc)  # Mark for deletion
+    
+    # Remove non-official locations from the dictionary
     for loc in locs_to_del:
         del bb_locs[loc]
         
@@ -1136,15 +1139,16 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
     # Loop through all indices
     
     
+    # Track which locations successfully had metadata created
     new_metadata_locs = []
+    
+    # Normalize loc_ids to always be a list for iteration
     if loc_ids is None:
-        # If no loc_ids are given, use all the remaining
-        # keys of the bb_locs dict as the loc_ids
+        # No specific locations requested - process all official locations
         loc_ids = list(bb_locs.keys())
     elif not(isinstance(loc_ids, list)):
-        # If loc_ids is only a string with one
-        # entry, ensure that the "loc_ids" variable
-        # is a list so that it is iterable
+        # Single location provided as string - convert to list
+        # This ensures consistent iteration logic below
         loc_ids = [loc_ids]
     
     print('\n\n\nLoop through all indices:')
@@ -1177,13 +1181,19 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
             print('No spotter buoy data is found for this location ID.')
             print('Do not create metadata for location ID: ' + loc_id)
             continue
-        spotter_ids = np.unique(locdata['WaveHeightSig']['data']['platform_id'])
+        # Extract unique spotter IDs from the wave height data
+        # np.atleast_1d ensures we can iterate even with a single spotter
+        spotter_ids = np.atleast_1d(np.unique(locdata['WaveHeightSig']['data']['platform_id']))
+        
+        # Build dictionary of spotter metadata for all spotters at this location
         spotters_dict = {}
         for spotter_id in spotter_ids:
+            # Verify that metadata exists for this spotter
             if spotter_id not in bb_plats.keys():
                 print('No spotter metadata has been added for spotter ' + spotter_id)
                 print('Unable to add data. Continue on.')
                 continue
+            # Add this spotter's metadata to the dictionary
             spotters_dict[spotter_id] = bb_plats[spotter_id]
         if len(spotters_dict) == 0:
             print('No spotter metadata has been added.')

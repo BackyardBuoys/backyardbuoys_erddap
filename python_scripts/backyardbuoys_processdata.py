@@ -39,6 +39,9 @@ import backyardbuoys_generate_xml as bb_xml
 
 from importlib import reload
 
+# Constants
+DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'  # ISO 8601 format for timestamps
+LOG_DATETIME_FORMAT = '%Y-%b-%d %H:%M:%S'  # Format for log messages
 
 # # General Functions
 
@@ -189,46 +192,54 @@ def get_data_by_location(location_id, vars_to_get = 'ALL',
         if test_dat is None:
             return tot_dat
         elif (tot_dat is None) and (test_dat is not None):
-            tot_data = test_dat.copy()
-            return tot_dat
+            # Return the test data as the initial dataset
+            return test_dat.copy()
         
-        # Check that the time stamps on the new data and the existing extracted data match.
-        # Store the matching indices and non-matching indices separately
-        basematchinds = []
-        matchinds = []
-        nonmatchinds = []
+        # Match timestamps between existing data and new variable data
+        # This ensures variables from the same observation are aligned
+        basematchinds = []  # Indices in the existing total_data
+        matchinds = []      # Indices in the new test_dat
+        nonmatchinds = []   # Indices in test_dat that don't match total_data
+        
         if len(test_dat) > 1:
+            # Check each new data point against existing data
             for ii in range(0,len(test_dat)):
+                # Look for matching point ID and platform ID
                 if any(np.logical_and(tot_dat.pt_id == 
                                       test_dat.pt_id.to_numpy().squeeze()[ii],
                                       tot_dat.platform_id == 
                                       test_dat.platform_id.to_numpy().squeeze()[ii])):
 
+                    # Found a match - record both indices
                     basematchinds.append(np.where(np.logical_and(tot_dat.pt_id == 
                                                                  test_dat.pt_id.to_numpy().squeeze()[ii],
                                                                  tot_dat.platform_id == 
                                                                  test_dat.platform_id.to_numpy().squeeze()[ii]))[0][0])
                     matchinds.append(ii)
                 else:
+                    # No match found - this is new data
                     nonmatchinds.append(ii)
 
 
-            # If all of the indices match, add the data directly to the dataframe
+            # Handle data merging based on matching results
             if len(matchinds) == len(tot_dat):
+                # Perfect match - all timestamps align, just add the variable column
                 tot_dat.loc[basematchinds,varname] = test_dat.loc[matchinds,varname].to_numpy().squeeze()
             else:
-                # If any indices do not match...
+                # Partial or no match - need to merge carefully
 
-                # ...first add all the matching indices in the right location
+                # First, add matching data points to their correct locations
                 if len(matchinds) > 0:
                     tot_dat.loc[basematchinds,varname] = test_dat.loc[matchinds,varname].to_numpy().squeeze()
 
-                # ..., and then append on the non-matching indices, 
-                # filling with NaNs where necessary
+                # Then append non-matching data as new rows
+                # Fill missing columns with NaNs
                 if len(nonmatchinds) > 0:
-                    if all([not(ii == varname) for ii in tot_dat.columns]):
+                    # Create the variable column if it doesn't exist yet
+                    if varname not in tot_dat.columns:
                         print('   ...Variable does not yet exist: ', varname)
                         tot_dat.loc[:,varname] = np.nan*np.ones(len(tot_dat))
+                    # Concatenate the non-matching rows
                     tot_dat = pd.concat([tot_dat, 
                                          test_dat.iloc[nonmatchinds,:]]).reset_index(drop=True)
                     print('   ...Some mismatched for ' + varname + ': ' + str(len(nonmatchinds)) + ' points') 
@@ -239,48 +250,52 @@ def get_data_by_location(location_id, vars_to_get = 'ALL',
 
         return tot_dat
     
-    # Extract out the variable data from the location data
+    # Extract variable data from location data and organize by depth
+    # Surface measurements (depth=0) go to varnames
+    # Subsurface measurements (depth≠0) go to smartvars (smart mooring sensors)
     loc_data_topds = {}
-    varnames = []
-    smartvars = []
-    smartdepths = []
+    varnames = []        # Surface wave buoy variables
+    smartvars = []       # Smart mooring sensor variables
+    smartdepths = []     # Depths of smart mooring sensors
+    
     for varname in location_data.keys():
         loc_data_topds[varname] = {}
         loc_data_topds[varname]['units'] = location_data[varname]['units']
         data_colnames = [ii for ii in location_data[varname]['data'].keys()]
         temp_pd = pd.DataFrame(data = location_data[varname]['data'],
                                columns=data_colnames)
+        # Rename 'value' column to the variable name for clarity
         data_colnames = [varname if ii == 'value' else ii for ii in data_colnames]
         loc_data_topds[varname]['data'] = temp_pd.rename(columns={"value": varname})
-        # Determine base variables, which only occur at the surface
+        
+        # Categorize variables by depth
         if any(loc_data_topds[varname]['data']['depth']==0):
-            varnames.append(varname)  
-        # Determine smart variables, which only occur at depth
+            varnames.append(varname)  # Surface measurement
         if any(loc_data_topds[varname]['data']['depth']!=0):
-            smartvars.append(varname)
+            smartvars.append(varname)  # Subsurface measurement
             smartdepths.append(np.unique(loc_data_topds[varname]['data']['depth'])[0])
     
-    # Take each variables data, and put it into a dataframe
-    # Each variable is split out by whether it is on the regular
-    # wave buoy (i.e., at depth = 0), or is a smart mooring sensor
-    # (i.e., at a depth != 0)      
+    # Initialize separate dataframes for surface and subsurface data
+    # Surface data: Wave buoy measurements (depth = 0)
+    # Smart data: Smart mooring sensors (depth ≠ 0)
     if len(varnames) > 0:
+        # Start with the first surface variable
         test_data = loc_data_topds[varnames[0]]['data'].copy()
         total_data = test_data[test_data['depth'] == 0].reset_index(drop=True)
 
-        # Create a "point ID", created as a combination of
-        # data timestamp and depth
+        # Create a unique "point ID" for each observation
+        # Used to match data points across different variables
         total_data['pt_id'] = [str(total_data['timestamp'][ii]) 
                                for ii in range(0,len(total_data))]
     else:
         total_data = None
 
     if len(smartvars) > 0:
+        # Start with the first smart mooring variable
         test_data = loc_data_topds[smartvars[0]]['data'].copy()
         smart_data = test_data[test_data['depth'] != 0].reset_index(drop=True)
 
-        # Create a "point ID", created as a combination of
-        # data timestamp and depth
+        # Create a unique "point ID" combining timestamp and depth
         smart_data['pt_id'] = [str(smart_data['timestamp'][ii]) 
                                for ii in range(0,len(smart_data))]
     else:
@@ -337,30 +352,25 @@ def get_data_by_location(location_id, vars_to_get = 'ALL',
 
             
     
-    # Convert data times into actual timestamps
+    # Convert Unix timestamps to datetime objects
+    # Use vectorized pandas operation for efficiency
     total_data_time = total_data.timestamp.to_numpy()
     if len(total_data_time) > 1:
-        total_data_datetime = [datetime.datetime(1970,1,1) + datetime.timedelta(seconds=int(ii)) 
-                               if not(pd.isna(ii)) else pd.NaT 
-                               for ii in total_data_time.squeeze()]
+        # Vectorized conversion is much faster than list comprehension
+        total_data['time'] = pd.to_datetime(total_data.timestamp, unit='s', errors='coerce')
     else:
-        total_data_datetime = datetime.datetime(1970,1,1) + datetime.timedelta(seconds=int(total_data_time))
-    total_data['time'] = total_data_datetime
+        total_data['time'] = pd.to_datetime(total_data.timestamp, unit='s')
     
     # Drop any data with bad "time" values
     total_data = total_data.dropna(subset='time').reset_index(drop=True)
     
     if smart_data is not None:
-        
-        # Convert data times into actual timestamps
+        # Convert Unix timestamps to datetime objects using vectorized operation
         total_data_time = smart_data.timestamp.to_numpy()
         if len(total_data_time) > 1:
-            total_data_datetime = [datetime.datetime(1970,1,1) + datetime.timedelta(seconds=int(ii)) 
-                                   if not(pd.isna(ii)) else pd.NaT 
-                                   for ii in total_data_time.squeeze()]
+            smart_data['time'] = pd.to_datetime(smart_data.timestamp, unit='s', errors='coerce')
         else:
-            total_data_datetime = datetime.datetime(1970,1,1) + datetime.timedelta(seconds=int(total_data_time))
-        smart_data['time'] = total_data_datetime
+            smart_data['time'] = pd.to_datetime(smart_data.timestamp, unit='s')
 
         # Drop any data with bad "time" values
         smart_data = smart_data.dropna(subset='time').reset_index(drop=True)
@@ -553,7 +563,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
                 lasttime = last_smarttime
             
         print('   Last time stamp of the existing data: ' + 
-              lasttime.strftime('%Y-%m-%dT%H:%M:%SZ'))
+              lasttime.strftime(DATETIME_FORMAT))
         
         
         # Pull data since the later of the start of the data record,
@@ -578,18 +588,18 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
     # Load in the data from the Backyard Buoys data API
     # Note, that for now, nothing is done with the smart mooring data (i.e., "ds_smart")
     if pulltime is not None:
-        print('   ' + datetime.datetime.now().strftime('%Y-%b-%d %H:%M:%S') + 
-              ': Pull data since ' + pulltime.strftime('%Y-%m-%dT%H:%M:%SZ'))
-        pulltime = pulltime.strftime('%Y-%m-%dT%H:%M:%SZ')
+        print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
+              ': Pull data since ' + pulltime.strftime(DATETIME_FORMAT))
+        pulltime = pulltime.strftime(DATETIME_FORMAT)
     else:
-        print('   ' + datetime.datetime.now().strftime('%Y-%b-%d %H:%M:%S') + 
+        print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
               ': Pull data since the beginning of the data record.')
     ds, ds_smart = get_data_by_location(loc_id, 
                                         time_start = pulltime)
     if ds is None:
         print('   Return without processing any data')
         return
-    print('   ' + datetime.datetime.now().strftime('%Y-%b-%d %H:%M:%S') + 
+    print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
               ': Data pulled')
     
     
@@ -1185,6 +1195,8 @@ def netcdf_add_variables(dataset, loc_id, ds):
             temp_qcvar.coverage_content_type = 'qualityInformation'
             temp_qcvar.flag_vals = '1, 2, 3, 4, 9'
             temp_qcvar.flag_meanings = 'PASS NOT_EVALUATED SUSPECT FAIL MISSING'
+            if qc_var == 'qc_agg':
+                temp_qcvar.gts_ingest = 'true'
             temp_qcvar[:] = ds[var + '_' + origqc_var]
     
     
@@ -1354,6 +1366,8 @@ def netcdf_add_smart_variables(dataset, loc_id, ds_smart, smart_vars):
             temp_qcvar.coverage_content_type = 'qualityInformation'
             temp_qcvar.flag_vals = '1, 2, 3, 4, 9'
             temp_qcvar.flag_meanings = 'PASS NOT_EVALUATED SUSPECT FAIL MISSING'
+            if qc_var == 'qc_agg':
+                temp_qcvar.gts_ingest = 'true'
             temp_qcvar[:] = ds_smart[var + '_' + origqc_var]
     
     
@@ -1693,6 +1707,7 @@ def update_location_info(loc_id):
         
     else:
         bb_locs = bb_da.bbapi_get_locations()
+        print(bb_locs.keys())
         if not(any([loc == loc_id for loc in bb_locs.keys()])):
             print('No recent data for location ID: ' + loc_id)
             print('Do not update location info.')
@@ -1723,7 +1738,8 @@ def update_location_info(loc_id):
         # Otherwise, create a new info dictionary
         # with relevant info about the location
         spotter_list = np.unique(all_locdata['WaveHeightSig']['data']['platform_id'][0])
-        bb_spots = bb_da.bbapi_get_platforms()
+        bb_spots = bb_da.bbapi_get_platforms(allplatsFlag=True)
+
         spotter_liststr = ''
         spotter_data = {}
         for spotter in spotter_list:
