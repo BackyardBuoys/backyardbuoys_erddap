@@ -73,8 +73,9 @@ def load_existing_netcdf(loc_id):
     
         # Create a file list of all the existing netCDFs
         # that correspond to the datafile
+        # Exclude smart mooring files (those with '_smart' in the filename)
         datafiles = sorted([ii for ii in os.listdir(datadir) 
-                            if (loc_id in ii) and ('.nc' in ii)])
+                            if (loc_id in ii) and ('.nc' in ii) and ('_smart' not in ii)])
 
         # Extract out the data year for all the files
         dataperiods = [ii[3+len(loc_id)+1:ii.find('.nc')]
@@ -117,16 +118,28 @@ def load_existing_netcdf(loc_id):
     
     # Check the base data directories
     if smartdir is None:
-        ds_smart = None
-    else:
+        # Check if smart files exist in the main directory
+        if os.path.exists(datadir):
+            smart_files = [ii for ii in os.listdir(datadir) 
+                          if (loc_id in ii) and ('.nc' in ii) and ('_smart' in ii)]
+            if len(smart_files) > 0:
+                smartdir = datadir
+            else:
+                ds_smart = None
+        else:
+            ds_smart = None
+    
+    if smartdir is not None:
     
         # Create a file list of all the existing netCDFs
-        # that correspond to the datafile
+        # that correspond to the smart mooring datafile
         datafiles = sorted([ii for ii in os.listdir(smartdir) 
-                            if (loc_id in ii) and ('.nc' in ii)])
+                            if (loc_id in ii) and ('.nc' in ii) and ('_smart' in ii)])
 
         # Extract out the data year for all the files
-        dataperiods = [ii[3+len(loc_id)+1:ii.find('.nc')]
+        # Smart files are named like: bb_<loc_id>_smart_<YYYYMM>.nc
+        # So we need to skip past 'bb_', loc_id, and '_smart_' to get the period
+        dataperiods = [ii[3+len(loc_id)+7:ii.find('.nc')]
                        for ii in datafiles]
         datayears = [int(ii[:4]) for ii in dataperiods]
         datamonths = [int(ii[4:]) for ii in dataperiods]
