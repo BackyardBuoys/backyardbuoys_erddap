@@ -598,7 +598,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
                                         time_start = pulltime)
     if ds is None:
         print('   Return without processing any data')
-        return
+        return None, None
     print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
               ': Data pulled')
     
@@ -622,7 +622,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
                 ds.drop(index=ds[ds['platform_id']==spotter].index).reset_index(drop=True)
             if len(ds) == 0:
                 print('   No data remains to process. Return without processing any data.')
-                return
+                return None, None
     
     # Check that the dataset has all the necessary columns
     ds = check_for_necessary_variables(ds)
@@ -714,7 +714,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
                     ds.drop(index=ds[ds['platform_id']==spotter].index).reset_index(drop=True)
                 if len(ds) == 0:
                     print('   No data remains to process. Return without processing any data.')
-                    return
+                    return None, None
 
         # Check that the dataset has all the necessary columns
         ds_smart = check_for_necessary_variables(ds_smart, smartflag=True)
@@ -1588,11 +1588,13 @@ def update_location_info(loc_id):
             infodict = json.load(info_json)
             
         # Extract out a list of all spotter IDs for a location
+        # Filter out empty strings that may result from trailing commas or empty fields
         if ',' in infodict['spotter_ids']:
             spotter_list = [ii.strip() for ii in 
-                            np.unique(infodict['spotter_ids'].split(','))]
+                            np.unique(infodict['spotter_ids'].split(',')) 
+                            if ii.strip()]
         else:
-            spotter_list = [infodict['spotter_ids']]
+            spotter_list = [infodict['spotter_ids']] if infodict['spotter_ids'] else []
            
         
         # Load in the location info
@@ -1670,6 +1672,15 @@ def update_location_info(loc_id):
         spotter_liststr = ''
         spotter_data = {}
         for spotter in new_spotter_list:
+            # Skip empty spotter IDs
+            if not spotter or not spotter.strip():
+                print(f'   Skipping empty spotter ID')
+                continue
+            
+            if spotter not in bb_spots:
+                print(f'   Warning: Spotter {spotter} not found in platform data')
+                continue
+                
             if spotter_liststr == '':
                 extra_str = ''
             else:
