@@ -1491,6 +1491,12 @@ def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False):
     # Create and/or update the location info json
     addspotterFlag = update_location_info(loc_id)
     
+    # If update_location_info returns False, the location has no recent data
+    # and cannot be processed
+    if addspotterFlag is False:
+        print(f'{loc_id}: No recent data available. Cannot process location.')
+        return False
+    
     # Load in the meta data for all locations
     metadir = os.path.join(basedir, loc_id, 'metadata', loc_id +'_metadata.json')
     if not(os.path.exists(metadir)):
