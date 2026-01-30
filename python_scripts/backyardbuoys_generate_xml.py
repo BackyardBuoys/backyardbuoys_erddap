@@ -33,6 +33,30 @@ server in building out the datasets to post online.
 
 # In[ ]:
 
+# Create a function to send error emails
+def send_newdataset_email(locName, smart_flag=False):
+
+    # Load in the directory info json
+    basedir = os.path.dirname(__file__)
+    with open(os.path.join(basedir,'bb_dirs.json'), 'r') as dir_json:
+        dir_info = json.load(dir_json)
+    # Get the base directory which contains the erddap data
+    infodir = dir_info['info_jsons']
+    with open(os.path.join(infodir, 'user_info.json'), 'r') as infofile:
+        user_info = json.load(infofile)
+
+    newdata_msg = "A new dataset has been added for location " + locName + ".\n\n"
+    if smart_flag:
+        newdata_msg = newdata_msg + "This location contains Smart Mooring data.\n\n"
+        newdata_sbj = "Backyard Buoys - New dataset (with smart mooring) added: Location: " + locName
+    else:
+        newdata_sbj = "Backyard Buoys - New dataset added: Location: " + locName
+    
+    bb.send_emailreport(msgtxt=newdata_msg, subj=newdata_sbj,
+                        fromaddr=user_info['email_fromaddr'], toaddr="setht1@uw.edu",
+                        login=user_info['email_login'], passwd=user_info['email_passwd'],
+                        smtpserver=user_info['smtpserver'])
+
 
 def get_datasetxml_dir():
     
@@ -428,6 +452,7 @@ def add_new_dataset_snip(dataset_dir, main_root, loc_id):
     if append_new:
         # Dataset doesn't exist yet - just append it
         main_root.append(snip_root)
+        send_newdataset_email(loc_id, smart_flag=smartmooring)  
     else:
         # Dataset exists - remove the old version first, then add the new one
         # This ensures we always have the most up-to-date dataset configuration
@@ -438,7 +463,6 @@ def add_new_dataset_snip(dataset_dir, main_root, loc_id):
                     main_root.remove(elem)  # Remove old version
         # Append the updated snippet
         main_root.append(snip_root)
-        
     
     ########################
     # Smart Mooring Option #
