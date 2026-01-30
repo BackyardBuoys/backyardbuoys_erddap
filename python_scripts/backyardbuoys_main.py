@@ -399,9 +399,6 @@ def main():
                 )
             else:
                 # Update data for a single location
-                print('Updating data for location: ' + locName)
-                print('   Rebuild flag: ' + str(rebuildFlag))
-                print('   Rerun QC tests flag: ' + str(qctestFlag))
                 bb_process.update_data_by_location(
                     locName, 
                     rebuild_flag=rebuildFlag, 

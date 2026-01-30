@@ -541,7 +541,7 @@ def get_ioos_association_url(ioos_assoc):
     if any([ii == ioos_assoc for ii in ioos_ra_keys]):
         return ioos_ra_urls[ioos_assoc]
     else:
-        return None
+        return 'none'
 
 
 # In[ ]:
