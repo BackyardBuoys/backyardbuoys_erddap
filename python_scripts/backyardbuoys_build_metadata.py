@@ -56,6 +56,11 @@ processes, as all data pulls should be
 migrated to coming from the Backyard Buoys API.
 """
 
+# Constants
+DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'  # ISO 8601 format for timestamps
+LOG_DATETIME_FORMAT = '%Y-%b-%d %H:%M:%S'  # Format for log messages
+
+
 
 # In[ ]:
 
@@ -164,7 +169,7 @@ def create(title):
 # In[ ]:
 
 
-def batch_get_values(spreadsheet_id, _range_names):
+def batch_get_values(spreadsheet_id, _range_names, sheet_name=None):
     """
     This function was taken from Google Sheet API tutorials.
     
@@ -1027,11 +1032,14 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
 # In[ ]:
 
 
-def get_all_google_qcdata():
+def get_all_google_qcdata(smartflag=False):
     
     google_info = bb.load_googleinfo_json()
     qcdata_sheetid = google_info['qartod']
-    all_qc = batch_get_values(qcdata_sheetid,'A1:CW')
+    if smartflag:
+        all_qc = batch_get_values(qcdata_sheetid,'smart!A1:K')
+    else:
+        all_qc = batch_get_values(qcdata_sheetid,'spotter!A1:CW')
 
     qc_df = pd.DataFrame(columns = all_qc['valueRanges'][0]['values'][0],
                          data=all_qc['valueRanges'][0]['values'][1:])
@@ -1106,6 +1114,89 @@ def make_qcdata_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
     return
 
 
+# In[ ]:
+
+
+def make_smart_qartod_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
+    
+    """
+    This function creates a SMART mooring QARTOD json for a given
+    location. It creates a dictionary of the QARTOD limits
+    for sea water temperature tests, and writes it out
+    to a json file.
+    
+    Function inputs:
+    basedir        - the base directory path of all datafiles
+    bb_loc         - the location ID for a given Backyard Buoys dataset
+    qartod_limits  - optional dictionary of QARTOD limits; if None, uses defaults
+    rebuildFlag    - flag to force rebuild of existing json
+    
+    Function outputs:
+    None - writes JSON file to disk
+    """
+
+    if qc_df is None:
+        qc_df = get_all_google_qcdata(smartflag=True)
+    
+    # Extract out the QC limits corresponding to the correct project.
+    # If no corresponding project is found, use the default limits.
+    if any(qc_df['loc_id'] == bb_loc):
+        qc_ind = np.where(qc_df['loc_id'] == bb_loc)[0][0]
+        default_flag = False
+    else:
+        qc_ind = np.where(qc_df['loc_id'] == 'default')[0][0]
+        default_flag = True
+    qc_lims = qc_df.iloc[qc_ind]
+    
+    
+    # Create a dictionary to hold all the QC limits
+    qc_dict = {}
+    for lim in qc_lims.index[1:]:
+        qc_dict[lim] = qc_lims[lim]
+    
+    
+    
+    # Build a total dictionary for the SMART QARTOD json
+    datadict = {
+        "creation_date": datetime.datetime.now().strftime('%Y-%b-%dT%H:%M:%S'),
+        "default_limits_used": default_flag,
+        "qartod_limits": qc_dict
+    }
+    
+    # Write out the SMART QARTOD json
+    
+    sourcedir = os.path.join(basedir, bb_loc)
+    if not(os.path.exists(sourcedir)):
+        os.mkdir(sourcedir)
+        
+    sourcedir = os.path.join(sourcedir, 'metadata')
+    if not(os.path.exists(sourcedir)):
+        os.mkdir(sourcedir)
+        
+    filename = bb_loc + '_smart_qartod.json'
+    filepath = os.path.join(sourcedir, filename)
+    
+    make_json = True
+    if os.path.exists(filepath) and not(rebuildFlag):
+        if not(os.path.exists(os.path.join(sourcedir, 'archive'))):
+            os.mkdir(os.path.join(sourcedir, 'archive'))
+            
+        with open(filepath, 'r') as smart_qartod_json:
+            check_json = json.load(smart_qartod_json)
+            
+        if datadict['qartod_limits'] != check_json['qartod_limits']:
+            archive_name = bb_loc + '_smart_qartod_' + datetime.datetime.now().strftime('%Y%m%d') + '.json'
+            shutil.move(filepath, os.path.join(sourcedir, 'archive', archive_name))
+        else:
+            make_json = False
+            
+    if make_json or rebuildFlag:
+        with open(filepath, 'w') as bb_json:
+            json.dump(datadict, bb_json, indent=4)
+        
+    return
+
+
 # # General metadata wrapper function
 
 # In[ ]:
@@ -1154,7 +1245,7 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
     print('\n\n\nLoop through all indices:')
     for loc_id in loc_ids:
         
-        print('\nLocation ID:',loc_id)
+        print('\n' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + ' - Location ID:',loc_id)
         
         # Check if the location ID is present in valid locations
         if not(any([loc == loc_id for loc in bb_locs.keys()])):
@@ -1181,12 +1272,14 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
             print('No spotter buoy data is found for this location ID.')
             print('Do not create metadata for location ID: ' + loc_id)
             continue
+
         # Extract unique spotter IDs from the wave height data
         # np.atleast_1d ensures we can iterate even with a single spotter
         spotter_ids = np.atleast_1d(np.unique(locdata['WaveHeightSig']['data']['platform_id']))
         
         # Build dictionary of spotter metadata for all spotters at this location
         spotters_dict = {}
+        smartFlag = False
         for spotter_id in spotter_ids:
             # Verify that metadata exists for this spotter
             if spotter_id not in bb_plats.keys():
@@ -1195,6 +1288,11 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
                 continue
             # Add this spotter's metadata to the dictionary
             spotters_dict[spotter_id] = bb_plats[spotter_id]
+            # Check if this spotter is a SMART mooring
+            if ((bb_plats[spotter_id]['type'] == 'SofarSmartSpotter') 
+                and
+                (isinstance(bb_plats[spotter_id]['smart_mooring_info'], list))):
+                smartFlag = True
         if len(spotters_dict) == 0:
             print('No spotter metadata has been added.')
             print('Do not create metadata for location ID: ' + loc_id)
@@ -1204,6 +1302,9 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
         make_metadata_json(basedir, loc_id, 
                            loc_meta, spotters_dict, rebuild_flag)
         make_qcdata_json(basedir, loc_id, qc_df, rebuild_flag)
+        if smartFlag:
+            print('   Add smart mooring QARTOD json.')
+            make_smart_qartod_json(basedir, loc_id, rebuildFlag=rebuild_flag)
         make_location_info_json(basedir, loc_id, rebuild_flag)
         
         # Append on the new metadata

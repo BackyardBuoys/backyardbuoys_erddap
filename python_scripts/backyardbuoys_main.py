@@ -252,8 +252,8 @@ def main():
             
         # Check if rebuild flag is being used with an incompatible process
         # The rebuild flag can only be used with the 'addData' process
-        if not(processName == 'addData') and rebuildFlag:
-            print('The rebuild flag can only be used for the "addData" process.')
+        if (not((processName == 'addData') or (processName == 'addMetadata'))) and rebuildFlag:
+            print('The rebuild flag can only be used for the "addData" or "addMetadata" processes.')
             print('Flag will be set to "false", and process will continue.')
             rebuildFlag = False
         
@@ -399,6 +399,9 @@ def main():
                 )
             else:
                 # Update data for a single location
+                print('Updating data for location: ' + locName)
+                print('   Rebuild flag: ' + str(rebuildFlag))
+                print('   Rerun QC tests flag: ' + str(qctestFlag))
                 bb_process.update_data_by_location(
                     locName, 
                     rebuild_flag=rebuildFlag, 

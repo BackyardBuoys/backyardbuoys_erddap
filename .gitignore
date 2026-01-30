@@ -1,2 +1,3 @@
 *.pyc
 erddap_files/archive/datasets_20260121.xml
+python_scripts/info_jsons/user_info.json

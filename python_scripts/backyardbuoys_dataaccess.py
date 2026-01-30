@@ -246,6 +246,8 @@ def bbapi_get_location_data(loc_id, vars_to_get='ALL', time_start=None, time_end
     # Add optional time filters if provided
     if time_start is not None:
         params['time_start'] = time_start
+    else:
+        params['time_start'] = '2022-01-01T00:00:00Z'
     if time_end is not None:
         params['time_end'] = time_end
         

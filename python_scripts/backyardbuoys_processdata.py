@@ -186,8 +186,8 @@ def load_existing_netcdf(loc_id):
 def get_data_by_location(location_id, vars_to_get = 'ALL', 
                          time_start=None, time_end=None):
     
-    ###################################
-    # Pull data for NANOOS Tables
+    ####################################
+    # Pull data for for a given location
     location_data = bb_da.bbapi_get_location_data(location_id, vars_to_get, 
                                                   time_start, time_end)
     if (location_data is None) or (len(location_data) == 0):
@@ -313,6 +313,7 @@ def get_data_by_location(location_id, vars_to_get = 'ALL',
                                for ii in range(0,len(smart_data))]
     else:
         smart_data = None
+
         
     
     # Step through all additional variables, and append them
@@ -330,6 +331,8 @@ def get_data_by_location(location_id, vars_to_get = 'ALL',
         if any(alltest_data != 0):
             test_data = alltest_data[alltest_data['depth'] == 0].reset_index(drop=True)
             smarttest_data = alltest_data[alltest_data['depth'] != 0].reset_index(drop=True)
+            if smarttest_data.shape[0] == 0:
+                smarttest_data = None  
         else:
             test_data = alltest_data.copy()
             smarttest_data = None
@@ -539,7 +542,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
         infodict = None
 
     check_spotters = False
-    if infodict is not None and 'spotter_data' in infodict.keys():        
+    if (infodict is not None) and ('spotter_data' in infodict.keys()):        
         spotter_list = []
         valid_spotters = []
         # Filter out empty strings from spotter list
@@ -607,8 +610,8 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
     else:
         print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
               ': Pull data since the beginning of the data record.')
-    ds, ds_smart = get_data_by_location(loc_id, 
-                                        time_start = pulltime)
+        print(' Data record begins at ' + pulltime.strftime(DATETIME_FORMAT))
+    ds, ds_smart = get_data_by_location(loc_id, time_start=pulltime)
     if ds is None:
         print('   Return without processing any data')
         return None, None
@@ -1489,19 +1492,19 @@ def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False):
     basedir = bb.get_datadir()
     
     # Create and/or update the location info json
-    addspotterFlag = update_location_info(loc_id)
+    addspotterFlag = update_location_info(loc_id, rebuild_flag)
     
     # If update_location_info returns False, the location has no recent data
     # and cannot be processed
-    if addspotterFlag is False:
+    if (addspotterFlag is False) and not(rebuild_flag):
         print(f'{loc_id}: No recent data available. Cannot process location.')
         return False
     
     # Load in the meta data for all locations
     metadir = os.path.join(basedir, loc_id, 'metadata', loc_id +'_metadata.json')
     if not(os.path.exists(metadir)):
-        print(loc_id + ': No metadata exists for this project.')
-        print('Try to make the meta data for project: ' + loc_id)
+        print('   No metadata exists for project: ' + loc_id)
+        print('   Try to make the meta data for project: ' + loc_id)
         meta_success = bb_meta.make_projects_metadata(loc_id, addspotterFlag)
         if not(meta_success):
             print('Unable to make the data file for this project')
@@ -1526,11 +1529,11 @@ def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False):
     # Loop through each unique year of data, 
     # and write the netcdf file for the
     # location ID for a given year
-    print('Years of data to write:', list(ds_grouped.groups.keys()))
+    print('     Years of data to write:', list(ds_grouped.groups.keys()))
     for year in ds_grouped.groups.keys():
         
         ds_subgrouped = ds_grouped[year].groupby('time.month')
-        print('Months of data to write:', list(ds_subgrouped.groups.keys()))
+        print('     Months of data to write:', list(ds_subgrouped.groups.keys()))
         for month in ds_subgrouped.groups.keys():
             # Write the netcdf of the file
             write_netcdf(ds_subgrouped[month].sortby('time'), 
@@ -1591,7 +1594,7 @@ def get_valid_smart_vars(ds):
 # In[ ]:
 
 
-def update_location_info(loc_id):
+def update_location_info(loc_id, rebuild_flag=False):
     
     
     # Define the info json path
@@ -1619,7 +1622,7 @@ def update_location_info(loc_id):
         # Load in the location info
         bb_locs = bb_da.bbapi_get_locations(recentFlag=True)
         addspotterFlag = False
-        if not(any([loc == loc_id for loc in bb_locs.keys()])):
+        if not(any([loc == loc_id for loc in bb_locs.keys()])) and not(rebuild_flag):
             print('No recent data for location ID: ' + loc_id)
             print('Do not update location info.')
             return False
@@ -1737,7 +1740,6 @@ def update_location_info(loc_id):
         
     else:
         bb_locs = bb_da.bbapi_get_locations()
-        print(bb_locs.keys())
         if not(any([loc == loc_id for loc in bb_locs.keys()])):
             print('No recent data for location ID: ' + loc_id)
             print('Do not update location info.')
