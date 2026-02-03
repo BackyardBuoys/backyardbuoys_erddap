@@ -1481,6 +1481,41 @@ def write_netcdf(ds, loc_id, datayear, datamonth, smart_vars=None):
     
     return
 
+def add_wmo_code_to_data(loc_id):
+    # Get the path for the metadata info json
+    basedir = bb.get_datadir()
+    metadir = os.path.join(basedir, loc_id, 'metadata', loc_id +'_metadata.json')
+    if not(os.path.exists(metadir)):
+        print('   No metadata exists for project: ' + loc_id)
+        print('   Try to make the meta data for project: ' + loc_id)
+        meta_success = bb_meta.make_projects_metadata(loc_id)
+        if not(meta_success):
+            print('Unable to make the data file for this project')
+            return False
+    
+    # Load in the metadata json
+    with open(metadir, 'r') as meta_json:
+        metadict = json.load(meta_json)
+        
+    # Extract out the WMO code
+    wmo_code = metadict['metadata']['wmo_code']
+    if wmo_code == '':
+        print(f'No WMO code found for location {loc_id}. Cannot add to metadata.')
+        return False
+    
+    # Add the WMO code to the metadata for all netCDF files
+    ncfiles = [f for f in os.listdir(os.path.join(basedir, loc_id)) if f.endswith('.nc')]
+    for ncfile in ncfiles:
+        ncpath = os.path.join(basedir, loc_id, ncfile)
+        dataset = Dataset(ncpath, 'a')
+        dataset.wmo_platform_code = wmo_code
+        dataset.id = wmo_code
+        dataset.close()
+
+    print(f'Added WMO code {wmo_code} to netCDFs for location {loc_id} metadata.')
+    
+    return True
+
 
 # # Main Processing Functions
 

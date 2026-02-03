@@ -635,7 +635,7 @@ def make_metadata_json(basedir, bb_loc, loc_meta, spotters_dict, rebuildFlag=Fal
         "location_id": loc_meta['loc_id'],  
         "ioos_association": loc_meta['ioos_ra'],
         "ioos_url": get_ioos_association_url(loc_meta['ioos_ra']),
-        "wmo_code": '',
+        "wmo_code": loc_meta['wmo_code'],
         "region": loc_meta['region'],
         "northern_bound": loc_meta['lat_n'],
         "southern_bound": loc_meta['lat_s'],
@@ -1031,6 +1031,21 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
 
 # In[ ]:
 
+def get_all_google_wmo():
+    
+    google_info = bb.load_googleinfo_json()
+    wmo_sheetid = google_info['wmo']
+    all_wmo = batch_get_values(wmo_sheetid,'A1:B')
+
+    wmo_df = pd.DataFrame(columns = all_wmo['valueRanges'][0]['values'][0],
+                          data=all_wmo['valueRanges'][0]['values'][1:])
+    
+    wmo_dict = {}
+    for ind in wmo_df.index:
+        wmo_dict[wmo_df.loc[ind,'location_id']] = str(int(wmo_df.loc[ind,'wmo_id']))
+    
+    return wmo_dict
+
 
 def get_all_google_qcdata(smartflag=False):
     
@@ -1211,6 +1226,7 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
     bb_locs = bb_da.bbapi_get_locations() 
     bb_plats = bb_da.bbapi_get_platforms(allplatsFlag=True)
     qc_df = get_all_google_qcdata()
+    wmo_dict = get_all_google_wmo()
     
     # Filter out non-official Backyard Buoys sites
     # Only process locations where is_byb='yes' (excludes "Friends of..." sites)
@@ -1262,6 +1278,12 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
             print('Do not create metadata for location ID: ' + loc_id)
             continue
 
+        # Add WMO code if available
+        if loc_id in wmo_dict.keys():
+            loc_meta['wmo_code'] = wmo_dict[loc_id]
+        else:
+            loc_meta['wmo_code'] = ''
+
 
         # Use the location ID to pull a subset of all of the data, and to 
         # find the unique spotter IDs associated with that location ID
@@ -1275,7 +1297,10 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
 
         # Extract unique spotter IDs from the wave height data
         # np.atleast_1d ensures we can iterate even with a single spotter
-        spotter_ids = np.atleast_1d(np.unique(locdata['WaveHeightSig']['data']['platform_id']))
+        if locdata is not None:
+            spotter_ids = np.atleast_1d(np.unique(locdata['WaveHeightSig']['data']['platform_id']))
+        else:
+            spotter_ids = []
         
         # Build dictionary of spotter metadata for all spotters at this location
         spotters_dict = {}

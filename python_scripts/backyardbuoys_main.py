@@ -126,6 +126,7 @@ def main():
             print('                    Note that this process can use the "rebuild" flag')
             print('     "addDataset":  Add a new dataset to the ERDDAP dataset xml file')
             print('     "addMetadata": Add/update the metadata json for a given location')
+            print('     "addWMO":      Add/update the WMO code for a given location to all data files')
             print('\n  "location":')
             print('     Locations are the matching location_ids taken from the')
             print('     Backyard Buoys API Server.')
@@ -177,6 +178,7 @@ def main():
             print('               Note that this process can use the "rebuild" flag')
             print('"addDataset":  Add a new dataset to the ERDDAP dataset xml file')
             print('"addMetadata": Add/update the metadata json for a given location')
+            print('"addWMO":      Add/update the WMO code for a given location to all data files')
             print('\nPlease restart the program again, using a minimum syntax of:')
             print("backyardbuoys_main -p <processName> -l <locationName>")
             print('If you need addition options, please try:')
@@ -184,7 +186,7 @@ def main():
             sys.exit(2)
         
         # Check that the process name is one of the valid types
-        valid_procs = ['addData', 'addDataset', 'addMetadata']
+        valid_procs = ['addData', 'addDataset', 'addMetadata', 'addWMO']
         if not(any([ii == processName for ii in valid_procs])):
             print('Invalid process given. Unable to proceed.')
             print('Valid processes are:')
@@ -192,6 +194,7 @@ def main():
             print('               Note that this process can use the "rebuild" flag')
             print('"addDataset":  Add a new dataset to the ERDDAP dataset xml file')
             print('"addMetadata": Add/update the metadata json for a given location')
+            print('"addWMO":      Add/update the WMO code for a given location to all data files')
             print('\nPlease restart the program again, using a minimum syntax of:')
             print("backyardbuoys_main -p <processName> -l <locationName>")
             print('If you need addition options, please try:')
@@ -205,6 +208,7 @@ def main():
         print('               Note that this process can use the "rebuild" flag')
         print('"addDataset":  Add a new dataset to the ERDDAP dataset xml file')
         print('"addMetadata": Add/update the metadata json for a given location')
+        print('"addWMO":      Add/update the WMO code for a given location to all data files')
         print('\nPlease restart the program again, using a minimum syntax of:')
         print("backyardbuoys_main -p <processName> -l <locationName>")
         print('If you need addition options, please try:')
@@ -424,6 +428,23 @@ def main():
             else:
                 # Create/update metadata for specific location
                 bb_meta.make_projects_metadata(locName, rebuild_flag=rebuildFlag)
+            
+        elif processName == 'addWMO':
+            if locName.lower() == 'all':
+                print('The "addWMO" process can only be run for a single location at a time.')
+                print('Please restart the program with a specific location name.')
+                # Exit the program unsuccessfully
+                sys.exit(2)
+
+            # First, recreate/update metadata for specific location
+            bb_meta.make_projects_metadata(locName, rebuild_flag=rebuildFlag)
+
+            # Process: Add or update WMO code for a given location
+            successFlag = bb_process.add_wmo_code_to_data(locName)
+            if not successFlag:
+                print('Failed to add/update WMO code for location: ' + locName)
+                # Exit the program unsuccessfully
+                sys.exit(2)
             
             
         else:
