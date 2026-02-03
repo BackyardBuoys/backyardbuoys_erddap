@@ -1,0 +1,13 @@
+<dataVariable>
+    <sourceName>sea_water_temperature</sourceName>
+    <destinationName>sea_water_temperature</destinationName>
+    <dataType>double</dataType>    
+    <addAttributes>
+        <att name="colorBarMaximum" type="double">32.0</att>
+        <att name="colorBarMinimum" type="double">0.0</att>
+        <att name="ioos_category">Temperature</att>
+        <att name="long_name">Sea Water Temperature</att>
+        <att name="standard_name">sea_water_temperature</att>
+        <att name="units">degree_C</att>
+    </addAttributes>
+</dataVariable>

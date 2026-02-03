@@ -335,12 +335,44 @@ def add_new_smart_dataset_snip(dataset_dir, main_root, loc_id):
     # Update the snip root with all of the info for all the
     # variables for the smart mooring
     for smartvar in smartvars:
+
+        # Get smart mooring variable info
+        smartvar_info = smartmooring_vars_list(smartvar)
+
+        # Add the specific smart mooring variable info
         smartvar_xmlfile = os.path.join(dataset_dir, 'smartvars', 
                                         smartvars[0]+'.xml')
         smartvar_tree = ET.parse(smartvar_xmlfile)
         smartvar_snip = smartvar_tree.getroot()
         
         snip_root.append(smartvar_snip)
+
+        # Add generic QC flag info for the smart mooring variable
+        smartvar_xmlfile = os.path.join(dataset_dir, 'smartvars', 'QCFlags.xml')
+        smartvar_tree = ET.parse(smartvar_xmlfile)
+        smartvar_snip = smartvar_tree.getroot()
+        
+        # Loop through each QC flag variable and update the names
+        for elem in smartvar_snip.findall('dataVariable'):
+
+            # Update sourceName and destinationName
+            sourceVar = elem.find('sourceName').text
+            sourceVar = sourceVar.replace('templatevar_', smartvar_info['var_id'] + '_')
+            elem.find('sourceName').text = sourceVar
+
+            destVar = elem.find('destinationName').text
+            destVar = destVar.replace('templatevar_', smartvar_info['var_id'] + '_')
+            elem.find('destinationName').text = destVar
+
+            # Update long_name attribute
+            addAtts = elem.find('addAttributes')
+            for att in addAtts.findall('att'):
+                if att.attrib['name'] == 'long_name':
+                    longnameVar = att.text
+                    longnameVar = longnameVar.replace('TemplateVar', smartvar_info['long_name'])
+                    att.text = longnameVar
+    
+            snip_root.append(elem)
 
 
     ###########################################################
@@ -375,6 +407,14 @@ def add_new_smart_dataset_snip(dataset_dir, main_root, loc_id):
     
     # Return the updated main_root
     return main_root
+
+def smartmooring_vars_list(varid):
+
+    smartvars = {"WaterTemp": {"var_id": "sea_water_temperature",
+                               "long_name": "Sea Water Temperature"}
+                               }
+    
+    return smartvars[varid]
 
 
 # In[ ]:
@@ -417,7 +457,7 @@ def add_new_dataset_snip(dataset_dir, main_root, loc_id):
             smartmooring = True
 
     if smartmooring:
-        print('Smart Mooring data present')
+        print('   Smart Mooring data present')
     
     
     #############################################################

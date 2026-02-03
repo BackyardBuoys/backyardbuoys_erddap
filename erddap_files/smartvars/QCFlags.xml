@@ -1,0 +1,62 @@
+    <dataset>
+<dataVariable>
+    <sourceName>templatevar_qc_agg</sourceName>
+    <destinationName>templatevar_qc_agg</destinationName>
+    <dataType>int</dataType>
+    <addAttributes>
+        <att name="_FillValue" type="int">-2147483648</att>
+        <att name="colorBarMaximum" type="double">9.0</att>
+        <att name="colorBarMinimum" type="double">1.0</att>
+        <att name="ioos_category">Quality</att>
+        <att name="long_name">TemplateVar Qc Agg</att>
+    </addAttributes>
+</dataVariable>
+<dataVariable>
+    <sourceName>templatevar_qc_gross_range_test</sourceName>
+    <destinationName>templatevar_qc_gross_range_test</destinationName>
+    <dataType>int</dataType>
+    <addAttributes>
+        <att name="_FillValue" type="int">-2147483647</att>
+        <att name="colorBarMaximum" type="double">9.0</att>
+        <att name="colorBarMinimum" type="double">1.0</att>
+        <att name="ioos_category">Quality</att>
+        <att name="long_name">TemplateVar Qc Gross Range Test</att>
+    </addAttributes>
+</dataVariable>
+<dataVariable>
+    <sourceName>templatevar_qc_rate_of_change_test</sourceName>
+    <destinationName>templatevar_qc_rate_of_change_test</destinationName>
+    <dataType>int</dataType>
+    <addAttributes>
+        <att name="_FillValue" type="int">-2147483647</att>
+        <att name="colorBarMaximum" type="double">9.0</att>
+        <att name="colorBarMinimum" type="double">1.0</att>
+        <att name="ioos_category">Quality</att>
+        <att name="long_name">TemplateVar Qc Rate Of Change Test</att>
+    </addAttributes>
+</dataVariable>
+<dataVariable>
+    <sourceName>templatevar_qc_spike_test</sourceName>
+    <destinationName>templatevar_qc_spike_test</destinationName>
+    <dataType>int</dataType>
+    <addAttributes>
+        <att name="_FillValue" type="int">-2147483647</att>
+        <att name="colorBarMaximum" type="double">9.0</att>
+        <att name="colorBarMinimum" type="double">1.0</att>
+        <att name="ioos_category">Quality</att>
+        <att name="long_name">TemplateVar Qc Spike Test</att>
+    </addAttributes>
+</dataVariable>
+<dataVariable>
+    <sourceName>templatevar_qc_flat_line_test</sourceName>
+    <destinationName>templatevar_qc_flat_line_test</destinationName>
+    <dataType>int</dataType>
+    <addAttributes>
+        <att name="_FillValue" type="int">-2147483647</att>
+        <att name="colorBarMaximum" type="double">9.0</att>
+        <att name="colorBarMinimum" type="double">1.0</att>
+        <att name="ioos_category">Quality</att>
+        <att name="long_name">TemplateVar Qc Flat Line Test</att>
+    </addAttributes>
+</dataVariable>
+</dataset>
