@@ -19,6 +19,7 @@ import numpy as np
 import json
 
 import datetime
+import time
 
 import backyardbuoys_dataaccess as bb_da
 import backyardbuoys_general_functions as bb
@@ -200,7 +201,7 @@ def batch_get_values(spreadsheet_id, _range_names, sheet_name=None):
         return result
     except HttpError as error:
         print(f"An error occurred: {error}")
-        return error
+        return None
 
 
 # In[ ]:
@@ -1036,6 +1037,13 @@ def get_all_google_wmo():
     google_info = bb.load_googleinfo_json()
     wmo_sheetid = google_info['wmo']
     all_wmo = batch_get_values(wmo_sheetid,'A1:B')
+    if all_wmo is None:
+        print('Retrieving WMO data from Google Sheet failed. Try again.')
+        time.sleep(5)
+        all_wmo = batch_get_values(wmo_sheetid,'A1:B')
+        if all_wmo is None:
+            print('Retrieving WMO data from Google Sheet failed again. Unable to proceed.')
+            return None
 
     wmo_df = pd.DataFrame(columns = all_wmo['valueRanges'][0]['values'][0],
                           data=all_wmo['valueRanges'][0]['values'][1:])
@@ -1051,10 +1059,15 @@ def get_all_google_qcdata(smartflag=False):
     
     google_info = bb.load_googleinfo_json()
     qcdata_sheetid = google_info['qartod']
-    if smartflag:
-        all_qc = batch_get_values(qcdata_sheetid,'smart!A1:K')
-    else:
-        all_qc = batch_get_values(qcdata_sheetid,'spotter!A1:CW')
+    sheet_range = 'smart!A1:K' if smartflag else 'spotter!A1:CW'
+    all_qc = batch_get_values(qcdata_sheetid,sheet_range)
+    if all_qc is None:
+        print('Retrieving QC data from Google Sheet failed. Try again.')
+        time.sleep(5)
+        all_qc = batch_get_values(qcdata_sheetid,sheet_range)
+        if all_qc is None:
+            print('Retrieving QC data from Google Sheet failed again. Unable to proceed.')
+            return None
 
     qc_df = pd.DataFrame(columns = all_qc['valueRanges'][0]['values'][0],
                          data=all_qc['valueRanges'][0]['values'][1:])
@@ -1069,6 +1082,9 @@ def make_qcdata_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
     
     if qc_df is None:
         qc_df = get_all_google_qcdata()
+        if qc_df is None:
+            print('Unable to retrieve QC data from Google Sheet. Do not make QC json.')
+            return False
     
     # Extract out the QC limits corresponding to the correct project.
     # If no corresponding project is found, use the default limits.
@@ -1126,7 +1142,7 @@ def make_qcdata_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
         with open(filepath, 'w') as bb_json:
             json.dump(datadict, bb_json)
         
-    return
+    return False
 
 
 # In[ ]:
@@ -1152,6 +1168,9 @@ def make_smart_qartod_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
 
     if qc_df is None:
         qc_df = get_all_google_qcdata(smartflag=True)
+        if qc_df is None:
+            print('Unable to retrieve Smart QC data from Google Sheet. Do not make QC json.')
+            return False
     
     # Extract out the QC limits corresponding to the correct project.
     # If no corresponding project is found, use the default limits.
@@ -1227,6 +1246,9 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
     bb_plats = bb_da.bbapi_get_platforms(allplatsFlag=True)
     qc_df = get_all_google_qcdata()
     wmo_dict = get_all_google_wmo()
+    if qc_df is None or wmo_dict is None:
+        print('Unable to retrieve necessary data from Google Sheets. Do not make metadata jsons.')
+        return None
     
     # Filter out non-official Backyard Buoys sites
     # Only process locations where is_byb='yes' (excludes "Friends of..." sites)
@@ -1282,7 +1304,7 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
         if loc_id in wmo_dict.keys():
             loc_meta['wmo_code'] = wmo_dict[loc_id]
         else:
-            loc_meta['wmo_code'] = ''
+            loc_meta['wmo_code'] = '--'
 
 
         # Use the location ID to pull a subset of all of the data, and to 
