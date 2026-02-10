@@ -449,11 +449,18 @@ def add_new_dataset_snip(dataset_dir, main_root, loc_id):
     if info['spotter_ids'] == '':
         spotter_ids = []
     else:
-        spotter_ids = [ii.strip() for ii in 
-                       np.unique(info['spotter_ids'].split(','))]
+        spotter_ids = [
+            ii.strip()
+            for ii in np.unique(info['spotter_ids'].split(','))
+            if ii.strip()
+        ]
     smartmooring = False
+    spotter_data = info.get('spotter_data', {})
     for spotter_id in spotter_ids:
-        if len(info['spotter_data'][spotter_id]['smart_mooring_info']):
+        if spotter_id not in spotter_data:
+            print('   Warning: spotter_id not found in spotter_data: ' + spotter_id)
+            continue
+        if len(spotter_data[spotter_id].get('smart_mooring_info', [])):
             smartmooring = True
 
     if smartmooring:

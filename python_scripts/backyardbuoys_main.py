@@ -39,6 +39,7 @@ import sys
 import getopt
 import gc
 import warnings
+import traceback
 
 # Import BackyardBuoys modules
 import backyardbuoys_general_functions as bb
@@ -464,6 +465,7 @@ def main():
     except Exception as e:
         print('An error occurred while performing the process: ' + processName)
         print(e)
+        traceback.print_exc()
         if send_error_email_flag:
             send_error_email(processName, locName, e)
         # Exit the program unsuccessfully
