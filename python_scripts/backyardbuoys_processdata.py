@@ -610,7 +610,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
     else:
         print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
               ': Pull data since the beginning of the data record.')
-        print(' Data record begins at ' + pulltime.strftime(DATETIME_FORMAT))
+        print('   Data record begins at API default start date.')
     ds, ds_smart = get_data_by_location(loc_id, time_start=pulltime)
     if ds is None:
         print('   Return without processing any data')

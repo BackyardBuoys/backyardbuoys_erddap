@@ -796,7 +796,13 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
     
     
     # Define the info json path
-    sourcedir = os.path.join(basedir, loc_id, 'metadata')
+    # Ensure required directories exist so file writes do not fail
+    location_dir = os.path.join(basedir, loc_id)
+    if not(os.path.exists(location_dir)):
+        os.mkdir(location_dir)
+    sourcedir = os.path.join(location_dir, 'metadata')
+    if not(os.path.exists(sourcedir)):
+        os.mkdir(sourcedir)
     infodir = os.path.join(sourcedir, loc_id +'_info.json')
 
     
