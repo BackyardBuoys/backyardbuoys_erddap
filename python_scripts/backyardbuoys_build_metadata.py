@@ -793,6 +793,19 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
     """
     Location info
     """
+
+    def _extract_platform_ids(platform_id_data):
+        platform_ids = []
+        for entry in platform_id_data:
+            if isinstance(entry, (list, np.ndarray, pd.Series)):
+                for spotter_id in entry:
+                    if isinstance(spotter_id, str) and spotter_id.strip() != '':
+                        platform_ids.append(spotter_id.strip())
+            else:
+                if isinstance(entry, str) and entry.strip() != '':
+                    platform_ids.append(entry.strip())
+
+        return [ii for ii in np.unique(platform_ids)]
     
     
     # Define the info json path
@@ -806,12 +819,18 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
     infodir = os.path.join(sourcedir, loc_id +'_info.json')
 
     
-    # If the info path already exists, 
+    # If the info path already exists,
     # load in the info json, and update the relevant fields
-    if os.path.exists(infodir) and not(rebuildFlag):
-        
-        with open(infodir, 'r') as info_json:
-            infodict = json.load(info_json)
+    info_exists = os.path.exists(infodir)
+    load_existing_info = info_exists and not(rebuildFlag)
+    if load_existing_info:
+        try:
+            with open(infodir, 'r') as info_json:
+                infodict = json.load(info_json)
+        except FileNotFoundError:
+            print('Info json was missing for location ID: ' + loc_id)
+            print('Rebuild location info json from API data.')
+            return make_location_info_json(basedir, loc_id, rebuildFlag=True)
             
         # Extract out a list of all spotter IDs for a location
         if infodict['spotter_ids'] == '':
@@ -885,12 +904,17 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
                             datetime.timedelta(seconds=max_timestamp))
             
                 # Get the spotter ID from the most recent data
-                new_spotter = all_locdata['WaveHeightSig']['data']['platform_id'][0][0]
+                platform_ids = _extract_platform_ids(all_locdata['WaveHeightSig']['data']['platform_id'])
                 new_spotter_list = spotter_list
-                if not(any([new_spotter == spotter 
-                            for spotter in spotter_list])):
-                    addspotterFlag = True
-                    new_spotter_list.append(new_spotter)
+                if len(platform_ids) == 0:
+                    print('No valid platform_id entries found for this location.')
+                    print('Do not add new spotter to location info json.')
+                else:
+                    new_spotter = platform_ids[0]
+                    if not(any([new_spotter == spotter 
+                                for spotter in spotter_list])):
+                        addspotterFlag = True
+                        new_spotter_list.append(new_spotter)
                         
         
         # Get spotter platform data        
@@ -941,7 +965,7 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
             print('Add new location history information: ' + wavedate.strftime('%Y-%m-%dT%H:%M:%SZ'))
             infodict['loc_history'][wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')] = loc_info
         
-    else:
+    if not(load_existing_info):
         
         bb_locs = bb_da.bbapi_get_locations()
         if not(any([loc == loc_id for loc in bb_locs.keys()])):
@@ -973,7 +997,11 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
         
         # Otherwise, create a new info dictionary
         # with relevant info about the location
-        spotter_list = np.unique(all_locdata['WaveHeightSig']['data']['platform_id'][0])
+        spotter_list = _extract_platform_ids(all_locdata['WaveHeightSig']['data']['platform_id'])
+        if len(spotter_list) == 0:
+            print('No valid platform_id entries found for this location!')
+            print('Do not make any updates to the location info json.')
+            return False
         bb_plats = bb_da.bbapi_get_platforms(allplatsFlag=True)
         spotter_liststr = ''
         spotter_addlist = []
@@ -1009,21 +1037,27 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
     if os.path.exists(infodir):
         if not(os.path.exists(os.path.join(sourcedir, 'archive'))):
             os.mkdir(os.path.join(sourcedir, 'archive'))
+        
+        try:
+            with open(infodir,'r') as info_json:
+                check_json = json.load(info_json)
+        except FileNotFoundError:
+            check_json = None
             
-        with open(infodir,'r') as info_json:
-            check_json = json.load(info_json)
-            
-        if ((infodict['loc_history'] != check_json['loc_history']) 
+        if ((check_json is None)
             or
-            (('spotter_data' in check_json.keys())
-             and
-             (infodict['spotter_data'] != check_json['spotter_data']))
-            or
-            ('spotter_data' not in check_json.keys())
-           ):
+            ((infodict['loc_history'] != check_json['loc_history']) 
+             or
+             (('spotter_data' in check_json.keys())
+              and
+              (infodict['spotter_data'] != check_json['spotter_data']))
+             or
+             ('spotter_data' not in check_json.keys())
+            )):
             archive_name = (loc_id + '_info_' + 
                             datetime.datetime.now().strftime('%Y%m%d') + '.json')
-            shutil.move(infodir, os.path.join(sourcedir, 'archive', archive_name))
+            if check_json is not None and os.path.exists(infodir):
+                shutil.move(infodir, os.path.join(sourcedir, 'archive', archive_name))
         else:
             make_json = False
             

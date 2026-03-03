@@ -1632,6 +1632,20 @@ def get_valid_smart_vars(ds):
 def update_location_info(loc_id, rebuild_flag=False):
     
     
+    def _extract_platform_ids(platform_id_data):
+        platform_ids = []
+        for entry in platform_id_data:
+            if isinstance(entry, (list, np.ndarray, pd.Series)):
+                for spotter_id in entry:
+                    if isinstance(spotter_id, str) and spotter_id.strip() != '':
+                        platform_ids.append(spotter_id.strip())
+            else:
+                if isinstance(entry, str) and entry.strip() != '':
+                    platform_ids.append(entry.strip())
+
+        return [ii for ii in np.unique(platform_ids)]
+
+
     # Define the info json path
     basedir = bb.get_datadir()
     sourcedir = os.path.join(basedir, loc_id, 'metadata')
@@ -1716,12 +1730,17 @@ def update_location_info(loc_id, rebuild_flag=False):
                             datetime.timedelta(seconds=max_timestamp))
             
                 # Get the spotter ID from the most recent data
-                new_spotter = all_locdata['WaveHeightSig']['data']['platform_id'][0][0]
+                platform_ids = _extract_platform_ids(all_locdata['WaveHeightSig']['data']['platform_id'])
                 new_spotter_list = spotter_list
-                if not(any([new_spotter == spotter 
-                            for spotter in spotter_list])):
-                    addspotterFlag = True
-                    new_spotter_list.append(new_spotter)
+                if len(platform_ids) == 0:
+                    print('No valid platform_id entries found for this location.')
+                    print('Do not add new spotter to location info json.')
+                else:
+                    new_spotter = platform_ids[0]
+                    if not(any([new_spotter == spotter 
+                                for spotter in spotter_list])):
+                        addspotterFlag = True
+                        new_spotter_list.append(new_spotter)
                         
         
         # Get spotter platform data        
@@ -1804,7 +1823,11 @@ def update_location_info(loc_id, rebuild_flag=False):
         
         # Otherwise, create a new info dictionary
         # with relevant info about the location
-        spotter_list = np.unique(all_locdata['WaveHeightSig']['data']['platform_id'][0])
+        spotter_list = _extract_platform_ids(all_locdata['WaveHeightSig']['data']['platform_id'])
+        if len(spotter_list) == 0:
+            print('No valid platform_id entries found for this location!')
+            print('Do not make any updates to the location info json.')
+            return False
         bb_spots = bb_da.bbapi_get_platforms(allplatsFlag=True)
 
         spotter_liststr = ''

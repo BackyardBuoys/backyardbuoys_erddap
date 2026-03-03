@@ -303,6 +303,10 @@ def add_new_smart_dataset_snip(dataset_dir, main_root, loc_id):
     ################################################
     # Load in the location info
     info = bb.get_location_info(loc_id)
+    if info is None:
+        print('   No location info json found for location ID: ' + loc_id)
+        print('   Skip adding smart dataset snippet.')
+        return main_root
     
     # Check for smart mooring buoys
     if info['spotter_ids'] == '':
@@ -326,6 +330,10 @@ def add_new_smart_dataset_snip(dataset_dir, main_root, loc_id):
 
     # Read in the location metadata
     meta = bb.get_location_metadata(loc_id)
+    if meta is None:
+        print('   No metadata json found for location ID: ' + loc_id)
+        print('   Skip adding smart dataset snippet.')
+        return main_root
 
     # Update the snip with the location metadata
     snip_root = update_dataset_template(snip_root, meta, smartflag=True)
@@ -444,6 +452,10 @@ def add_new_dataset_snip(dataset_dir, main_root, loc_id):
     ################################################
     # Load in the location info
     info = bb.get_location_info(loc_id)
+    if info is None:
+        print('   No location info json found for location ID: ' + loc_id)
+        print('   Skip adding dataset snippet.')
+        return main_root
     
     # Check for smart mooring buoys
     if info['spotter_ids'] == '':
@@ -475,6 +487,10 @@ def add_new_dataset_snip(dataset_dir, main_root, loc_id):
     
     # Read in the location metadata
     meta = bb.get_location_metadata(loc_id)
+    if meta is None:
+        print('   No metadata json found for location ID: ' + loc_id)
+        print('   Skip adding dataset snippet.')
+        return main_root
     
     # Update the snip with the location metadata
     snip_root = update_dataset_template(snip_root, meta)
@@ -559,12 +575,17 @@ def add_all_datasets():
         del bb_locs[loc]
     
     # Build a list of locations for only those
-    # sites that already contain metadata jsons
+    # sites that already contain required metadata jsons
     full_locs = []
     for bb_loc in bb_locs:
+        loc_id = bb_locs[bb_loc]['loc_id']
+        loc_meta = bb.get_location_metadata(loc_id)
+        loc_info = bb.get_location_info(loc_id)
 
-        if bb_process.get_location_metadata(bb_locs[bb_loc]['loc_id']) is not None:
-            full_locs.append(bb_locs[bb_loc]['loc_id'])
+        if (loc_meta is not None) and (loc_info is not None):
+            full_locs.append(loc_id)
+        else:
+            print('Skip location ID due to missing metadata files: ' + loc_id)
             
             
     # Use the full list of locs to update the dataset xml
