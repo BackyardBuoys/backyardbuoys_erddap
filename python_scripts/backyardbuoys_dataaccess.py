@@ -29,6 +29,7 @@ import os
 import sys
 import getopt
 import gc
+import time
 
 import numpy as np
 import pandas as pd
@@ -46,6 +47,51 @@ from ioos_qc.stores import PandasStore
 
 # Import BackyardBuoys utility functions
 import backyardbuoys_general_functions as bb   
+
+
+def _request_get_with_retry(url, params=None, headers=None, request_label='API request',
+                            timeout=(10, 120), max_retries=3, base_backoff_seconds=5):
+    """
+    Perform a GET request with retry logic for transient network errors.
+
+    Parameters
+    ----------
+    url : str
+        URL to request.
+    params : dict, optional
+        Query parameters.
+    headers : dict, optional
+        Request headers.
+    request_label : str, optional
+        Human-readable label for logging.
+    timeout : tuple, optional
+        (connect_timeout, read_timeout) in seconds.
+    max_retries : int, optional
+        Number of attempts before raising an exception.
+    base_backoff_seconds : int, optional
+        Base delay for exponential backoff.
+
+    Returns
+    -------
+    requests.Response
+        HTTP response object.
+    """
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            return requests.get(url=url, params=params, headers=headers, timeout=timeout)
+        except requests.exceptions.Timeout as exc:
+            if attempt == max_retries:
+                raise
+            wait_seconds = base_backoff_seconds * (2 ** (attempt - 1))
+            print(f'{request_label} timed out (attempt {attempt}/{max_retries}). Retrying in {wait_seconds}s...')
+            time.sleep(wait_seconds)
+        except requests.exceptions.RequestException as exc:
+            if attempt == max_retries:
+                raise
+            wait_seconds = base_backoff_seconds * (2 ** (attempt - 1))
+            print(f'{request_label} failed (attempt {attempt}/{max_retries}): {exc}. Retrying in {wait_seconds}s...')
+            time.sleep(wait_seconds)
 
 
 # ============================================================================
@@ -114,7 +160,14 @@ def bbapi_get_locations(recentFlag=False):
         api_url = api_url + '?newest_data=true'
     
     # Make GET request to the API
-    response = requests.get(url=api_url)
+    try:
+        response = _request_get_with_retry(
+            url=api_url,
+            request_label='Backyard Buoys get_locations request'
+        )
+    except requests.exceptions.RequestException as exc:
+        print(f'Backyard Buoys get_locations request failed after retries: {exc}')
+        return {}
     
     # Parse the JSON response into a numpy array
     lines = np.array(response.json())
@@ -252,10 +305,21 @@ def bbapi_get_location_data(loc_id, vars_to_get='ALL', time_start=None, time_end
         params['time_end'] = time_end
         
     # Make GET request to the API with query parameters
-    response = requests.get(url=api_url, params=params)
+    try:
+        response = _request_get_with_retry(
+            url=api_url,
+            params=params,
+            request_label=f'Backyard Buoys get_location_data request for {loc_id}'
+        )
+    except requests.exceptions.RequestException as exc:
+        print(f'Backyard Buoys get_location_data request failed for {loc_id} after retries: {exc}')
+        return None
 
     # Parse the JSON response
     lines = response.json()
+
+    if not isinstance(lines, dict) or ('variables' not in lines):
+        return None
     
     # Check if any data was returned
     if len(lines['variables']) == 0:
@@ -317,7 +381,14 @@ def bbapi_get_platforms(inactiveFlag=False, retiredFlag=False,
         api_url = api_url + '?status=offline'
     
     # Make the API request
-    response = requests.get(url=api_url)
+    try:
+        response = _request_get_with_retry(
+            url=api_url,
+            request_label='Backyard Buoys get_platforms request'
+        )
+    except requests.exceptions.RequestException as exc:
+        print(f'Backyard Buoys get_platforms request failed after retries: {exc}')
+        return None
     json_response = response.json()
     
     # Check if the response is empty or contains an error message
@@ -436,7 +507,15 @@ def bbapi_get_platform_data(platform_id):
     }
 
     # Make GET request to the API
-    response = requests.get(url=api_url, params=params)
+    try:
+        response = _request_get_with_retry(
+            url=api_url,
+            params=params,
+            request_label=f'Backyard Buoys get_platform_data request for {platform_id}'
+        )
+    except requests.exceptions.RequestException as exc:
+        print(f'Backyard Buoys get_platform_data request failed for {platform_id} after retries: {exc}')
+        return None
     
     # Parse and return the JSON response
     lines = response.json()
@@ -534,7 +613,17 @@ def get_buoydata_sofarapi(basedir, spotterID, timeStart, apikey_file):
     
     # Make GET request to Sofar API
     api_url = "https://api.sofarocean.com/api/wave-data"
-    response = requests.get(url=api_url, headers=headers, params=params)
+    try:
+        response = _request_get_with_retry(
+            url=api_url,
+            headers=headers,
+            params=params,
+            request_label=f'Sofar wave-data request for {spotterID}'
+        )
+    except requests.exceptions.RequestException as exc:
+        print(f'Sofar wave-data request failed for {spotterID} after retries: {exc}')
+        ds = None
+        return ds
     
     # Check response status code and handle errors
     if response.status_code == 400:
@@ -663,7 +752,17 @@ def smartmooring(basedir, apikey_file, spotterID, startDate, endDate):
 
     # Make GET request to Sofar sensor data API
     smart_url = "https://api.sofarocean.com/api/sensor-data"
-    smart_response = requests.get(url=smart_url, headers=headers, params=smart_params)
+    try:
+        smart_response = _request_get_with_retry(
+            url=smart_url,
+            headers=headers,
+            params=smart_params,
+            request_label=f'Sofar sensor-data request for {spotterID}'
+        )
+    except requests.exceptions.RequestException as exc:
+        print(f'Sofar sensor-data request failed for {spotterID} after retries: {exc}')
+        ds = None
+        return ds
     
     # Check response status code and handle errors
     if smart_response.status_code == 400:

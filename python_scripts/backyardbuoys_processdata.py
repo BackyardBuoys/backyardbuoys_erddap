@@ -1915,6 +1915,7 @@ def update_all_locations(rebuild_flag=False, rerun_tests=False):
             
         
     # Step through each project, and update the data
+    failed_locations = []
     for ii in range(0,len(loc_ids)):
 
         if loc_active[ii] or rebuild_flag:
@@ -1927,7 +1928,16 @@ def update_all_locations(rebuild_flag=False, rerun_tests=False):
 
             print('\n' + datetime.datetime.now().strftime('%Y-%b-%d %H:%M:%S') 
                   + ': Processing data for ' + loc_ids[ii])
-            update_success = update_data_by_location(loc_ids[ii], rebuild_flag, rerun_tests)
+            try:
+                update_success = update_data_by_location(loc_ids[ii], rebuild_flag, rerun_tests)
+            except Exception as exc:
+                print(datetime.datetime.now().strftime('%Y-%b-%d %H:%M:%S')
+                    + ': Error processing ' + loc_ids[ii] + ': ' + str(exc))
+                print(datetime.datetime.now().strftime('%Y-%b-%d %H:%M:%S')
+                    + ': Skipping this location and continuing with remaining locations.\n')
+                failed_locations.append(loc_ids[ii])
+                update_success = False
+                continue
                 
             if update_success:
                 print(datetime.datetime.now().strftime('%Y-%b-%d %H:%M:%S') 
@@ -1941,6 +1951,9 @@ def update_all_locations(rebuild_flag=False, rerun_tests=False):
     if add_projs is not None:
         print('Adding ' + str(len(add_projs)) + ' new datasets to ERDDAP datasets.xml')
         bb_xml.update_datasets_xml(add_projs)
+
+    if len(failed_locations) > 0:
+        print('Locations with processing errors during this run: ' + ', '.join(failed_locations))
             
     return
 

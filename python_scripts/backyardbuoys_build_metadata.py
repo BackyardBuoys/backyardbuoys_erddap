@@ -20,6 +20,7 @@ import json
 
 import datetime
 import time
+import ssl
 
 import backyardbuoys_dataaccess as bb_da
 import backyardbuoys_general_functions as bb
@@ -186,22 +187,31 @@ def batch_get_values(spreadsheet_id, _range_names, sheet_name=None):
     creds = Credentials.from_authorized_user_file(token_path, SCOPES)
     
     # pylint: disable=maybe-no-member
-    try:
-        service = build("sheets", "v4", credentials=creds)
-        range_names = [
-            # Range names ...
-        ]
-        result = (
-            service.spreadsheets()
-            .values()
-            .batchGet(spreadsheetId=spreadsheet_id, ranges=_range_names)
-            .execute()
-        )
-        ranges = result.get("valueRanges", [])
-        return result
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return None
+    max_attempts = 4
+    for attempt in range(1, max_attempts + 1):
+        try:
+            service = build("sheets", "v4", credentials=creds)
+            result = (
+                service.spreadsheets()
+                .values()
+                .batchGet(spreadsheetId=spreadsheet_id, ranges=_range_names)
+                .execute()
+            )
+            return result
+        except HttpError as error:
+            if attempt == max_attempts:
+                print(f"An error occurred: {error}")
+                return None
+            wait_seconds = 5 * (2 ** (attempt - 1))
+            print(f"Google Sheets request failed (attempt {attempt}/{max_attempts}): {error}. Retrying in {wait_seconds}s...")
+            time.sleep(wait_seconds)
+        except (ssl.SSLEOFError, ssl.SSLError, TimeoutError, ConnectionError, OSError) as error:
+            if attempt == max_attempts:
+                print(f"Google Sheets request failed after retries: {error}")
+                return None
+            wait_seconds = 5 * (2 ** (attempt - 1))
+            print(f"Google Sheets connection error (attempt {attempt}/{max_attempts}): {error}. Retrying in {wait_seconds}s...")
+            time.sleep(wait_seconds)
 
 
 # In[ ]:
@@ -1283,7 +1293,12 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
     # and all the buoys in the Backyard Buoys data API
     basedir = bb.get_datadir()
     bb_locs = bb_da.bbapi_get_locations() 
+    if bb_locs is None or len(bb_locs) == 0:
+        print('Unable to retrieve Backyard Buoys locations. Do not make metadata jsons.')
+        return None
     bb_plats = bb_da.bbapi_get_platforms(allplatsFlag=True)
+    if bb_plats is None:
+        bb_plats = {}
     qc_df = get_all_google_qcdata()
     wmo_dict = get_all_google_wmo()
     if qc_df is None or wmo_dict is None:
@@ -1322,80 +1337,86 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
     
     print('\n\n\nLoop through all indices:')
     for loc_id in loc_ids:
+        try:
         
-        print('\n' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + ' - Location ID:',loc_id)
+            print('\n' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + ' - Location ID:',loc_id)
         
-        # Check if the location ID is present in valid locations
-        if not(any([loc == loc_id for loc in bb_locs.keys()])):
-            print('No data found which matches the location ID: ' + loc_id)
-            print('Unable to proceed.')
-            continue
-        else:
-            loc_meta = bb_locs[loc_id]
-        
-        # Double-check that the location ID
-        # is a Backyard Buoys site
-        if not(loc_meta['is_byb'] == 'yes'):
-            print('Location is not a Backyard Buoys site.')
-            print('Do not create metadata for location ID: ' + loc_id)
-            continue
-
-        # Add WMO code if available
-        if loc_id in wmo_dict.keys():
-            loc_meta['wmo_code'] = wmo_dict[loc_id]
-        else:
-            loc_meta['wmo_code'] = '--'
-
-
-        # Use the location ID to pull a subset of all of the data, and to 
-        # find the unique spotter IDs associated with that location ID
-        locdata = bb_da.bbapi_get_location_data(loc_id, 
-                                                vars_to_get='WaveHeightSig',
-                                                time_start=datetime.datetime(2022,6,1).strftime('%Y-%m-%dT%H:%M:%SZ'))
-        if locdata is None:
-            print('No spotter buoy data is found for this location ID.')
-            print('Do not create metadata for location ID: ' + loc_id)
-            continue
-
-        # Extract unique spotter IDs from the wave height data
-        # np.atleast_1d ensures we can iterate even with a single spotter
-        if locdata is not None:
-            spotter_ids = np.atleast_1d(np.unique(locdata['WaveHeightSig']['data']['platform_id']))
-        else:
-            spotter_ids = []
-        
-        # Build dictionary of spotter metadata for all spotters at this location
-        spotters_dict = {}
-        smartFlag = False
-        for spotter_id in spotter_ids:
-            # Verify that metadata exists for this spotter
-            if spotter_id not in bb_plats.keys():
-                print('No spotter metadata has been added for spotter ' + spotter_id)
-                print('Unable to add data. Continue on.')
+            # Check if the location ID is present in valid locations
+            if not(any([loc == loc_id for loc in bb_locs.keys()])):
+                print('No data found which matches the location ID: ' + loc_id)
+                print('Unable to proceed.')
                 continue
-            # Add this spotter's metadata to the dictionary
-            spotters_dict[spotter_id] = bb_plats[spotter_id]
-            # Check if this spotter is a SMART mooring
-            if ((bb_plats[spotter_id]['type'] == 'SofarSmartSpotter') 
-                and
-                (isinstance(bb_plats[spotter_id]['smart_mooring_info'], list))):
-                smartFlag = True
-        if len(spotters_dict) == 0:
-            print('No spotter metadata has been added.')
-            print('Do not create metadata for location ID: ' + loc_id)
-            continue
-
-        # Make the metadata and QC jsons for the specified project
-        make_metadata_json(basedir, loc_id, 
-                           loc_meta, spotters_dict, rebuild_flag)
-        make_qcdata_json(basedir, loc_id, qc_df, rebuild_flag)
-        if smartFlag:
-            print('   Add smart mooring QARTOD json.')
-            make_smart_qartod_json(basedir, loc_id, rebuildFlag=rebuild_flag)
-        make_location_info_json(basedir, loc_id, rebuild_flag)
+            else:
+                loc_meta = bb_locs[loc_id]
         
-        # Append on the new metadata
-        new_metadata_locs.append(loc_id)
+            # Double-check that the location ID
+            # is a Backyard Buoys site
+            if not(loc_meta['is_byb'] == 'yes'):
+                print('Location is not a Backyard Buoys site.')
+                print('Do not create metadata for location ID: ' + loc_id)
+                continue
+
+            # Add WMO code if available
+            if loc_id in wmo_dict.keys():
+                loc_meta['wmo_code'] = wmo_dict[loc_id]
+            else:
+                loc_meta['wmo_code'] = '--'
+
+
+            # Use the location ID to pull a subset of all of the data, and to 
+            # find the unique spotter IDs associated with that location ID
+            locdata = bb_da.bbapi_get_location_data(loc_id, 
+                                                    vars_to_get='WaveHeightSig',
+                                                    time_start=datetime.datetime(2022,6,1).strftime('%Y-%m-%dT%H:%M:%SZ'))
+            if locdata is None:
+                print('No spotter buoy data is found for this location ID.')
+                print('Do not create metadata for location ID: ' + loc_id)
+                continue
+
+            # Extract unique spotter IDs from the wave height data
+            # np.atleast_1d ensures we can iterate even with a single spotter
+            if locdata is not None:
+                spotter_ids = np.atleast_1d(np.unique(locdata['WaveHeightSig']['data']['platform_id']))
+            else:
+                spotter_ids = []
+        
+            # Build dictionary of spotter metadata for all spotters at this location
+            spotters_dict = {}
+            smartFlag = False
+            for spotter_id in spotter_ids:
+                # Verify that metadata exists for this spotter
+                if spotter_id not in bb_plats.keys():
+                    print('No spotter metadata has been added for spotter ' + spotter_id)
+                    print('Unable to add data. Continue on.')
+                    continue
+                # Add this spotter's metadata to the dictionary
+                spotters_dict[spotter_id] = bb_plats[spotter_id]
+                # Check if this spotter is a SMART mooring
+                if ((bb_plats[spotter_id]['type'] == 'SofarSmartSpotter') 
+                    and
+                    (isinstance(bb_plats[spotter_id]['smart_mooring_info'], list))):
+                    smartFlag = True
+            if len(spotters_dict) == 0:
+                print('No spotter metadata has been added.')
+                print('Do not create metadata for location ID: ' + loc_id)
+                continue
+
+            # Make the metadata and QC jsons for the specified project
+            make_metadata_json(basedir, loc_id, 
+                               loc_meta, spotters_dict, rebuild_flag)
+            make_qcdata_json(basedir, loc_id, qc_df, rebuild_flag)
+            if smartFlag:
+                print('   Add smart mooring QARTOD json.')
+                make_smart_qartod_json(basedir, loc_id, rebuildFlag=rebuild_flag)
+            make_location_info_json(basedir, loc_id, rebuild_flag)
+        
+            # Append on the new metadata
+            new_metadata_locs.append(loc_id)
+        except Exception as exc:
+            print(datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) +
+                  ' - Error while processing metadata for ' + loc_id + ': ' + str(exc))
+            print('Skip this location and continue with remaining locations.')
+            continue
         
     if len(new_metadata_locs) == 0:
         new_metadata_locs = None
