@@ -1,3 +1,14 @@
 *.pyc
 erddap_files/archive/datasets_20260121.xml
 python_scripts/info_jsons/user_info.json
+python_scripts/plot_buoy_trajectory.py
+python_scripts/info_jsons/user_info.json
+tokens/auth_token/backyardbuoys_google_oauth.json
+tokens/auth_token/token.json
+python_scripts/info_jsons/user_info.json
+python_scripts/bb_dirs.json
+python_scripts/info_jsons/user_info.json
+/erddap_files/archive
+python_scripts/info_jsons/user_info.json
+erddap_files/datasets.xml
+erddap_files/datasets.xml
