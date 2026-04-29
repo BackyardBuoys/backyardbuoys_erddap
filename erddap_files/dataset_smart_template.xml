@@ -1,5 +1,5 @@
 <dataset type="EDDTableFromMultidimNcFiles" datasetID="backyardbuoys_template_smart" active="true">
-    <reloadEveryNMinutes>10080</reloadEveryNMinutes>
+    <reloadEveryNMinutes>1440</reloadEveryNMinutes>
     <updateEveryNMillis>10000</updateEveryNMillis>
     <fileDir>/home/stravis/backyardbuoys_data/</fileDir>
     <fileNameRegex>bb_regex_.*\.nc</fileNameRegex>
