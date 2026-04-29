@@ -14,7 +14,7 @@
 <ipAddressMaxRequests />                     
 <ipAddressMaxRequestsActive />         
 <ipAddressUnlimited />                         
-<loadDatasetsMinMinutes>1</loadDatasetsMinMinutes>               
+<loadDatasetsMinMinutes />               
 <loadDatasetsMaxMinutes />                 
 <logLevel /> 
 <nGridThreads />                                     
