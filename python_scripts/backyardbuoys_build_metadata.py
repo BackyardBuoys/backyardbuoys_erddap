@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
+# %%
 
-# In[ ]:
+# %%
 
 
 import os
@@ -26,7 +27,7 @@ import backyardbuoys_dataaccess as bb_da
 import backyardbuoys_general_functions as bb
 
 
-# In[ ]:
+# %%
 
 
 """
@@ -44,7 +45,7 @@ present), and the QARTOD limits for each location.
 
 # # Google API Functions
 
-# In[ ]:
+# %%
 
 
 """
@@ -64,7 +65,7 @@ LOG_DATETIME_FORMAT = '%Y-%b-%d %H:%M:%S'  # Format for log messages
 
 
 
-# In[ ]:
+# %%
 
 
 def get_auth_dir():
@@ -93,7 +94,7 @@ def get_auth_dir():
     return auth_dir
 
 
-# In[ ]:
+# %%
 
 
 def get_user_token():
@@ -135,7 +136,7 @@ def get_user_token():
     return
 
 
-# In[ ]:
+# %%
 
 
 def create(title):
@@ -168,7 +169,7 @@ def create(title):
         return error
 
 
-# In[ ]:
+# %%
 
 
 def batch_get_values(spreadsheet_id, _range_names, sheet_name=None):
@@ -214,7 +215,7 @@ def batch_get_values(spreadsheet_id, _range_names, sheet_name=None):
             time.sleep(wait_seconds)
 
 
-# In[ ]:
+# %%
 
 
 def make_project_metadata_googleapi(loc_id):
@@ -273,7 +274,7 @@ def make_project_metadata_googleapi(loc_id):
 
 # # Metadata compilation functions
 
-# In[ ]:
+# %%
 
 
 def get_all_google_metadata():
@@ -308,7 +309,7 @@ def get_all_google_metadata():
     return meta_df
 
 
-# In[ ]:
+# %%
 
 
 def bb_api_build_contributors(contributors, unique_contributor_list):
@@ -391,7 +392,7 @@ def bb_api_build_contributors(contributors, unique_contributor_list):
     return contributor_names, contributor_roles, contributor_urls, unique_contributor_list
 
 
-# In[ ]:
+# %%
 
 
 def get_googleapi_contributors(contributors):
@@ -451,7 +452,7 @@ def get_googleapi_contributors(contributors):
     return contributor_names, contributor_roles, contributor_urls
 
 
-# In[ ]:
+# %%
 
 
 def find_contributor_role(contributor_role):
@@ -497,7 +498,7 @@ def find_contributor_role(contributor_role):
         return contributor_role
 
 
-# In[ ]:
+# %%
 
 
 def get_lat_lon_bounds(meta_series):
@@ -518,7 +519,7 @@ def get_lat_lon_bounds(meta_series):
     return northbnd, southbnd, westbnd, eastbnd
 
 
-# In[ ]:
+# %%
 
 
 def get_ioos_association_url(ioos_assoc):
@@ -555,7 +556,7 @@ def get_ioos_association_url(ioos_assoc):
         return 'none'
 
 
-# In[ ]:
+# %%
 
 
 def make_metadata_json(basedir, bb_loc, loc_meta, spotters_dict, rebuildFlag=False):
@@ -795,7 +796,7 @@ def make_metadata_json(basedir, bb_loc, loc_meta, spotters_dict, rebuildFlag=Fal
 
 # # Location Info
 
-# In[ ]:
+# %%
 
 
 def make_location_info_json(basedir, loc_id, rebuildFlag=False):
@@ -1080,7 +1081,7 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
 
 # # QARTOD Limits Compilation functions
 
-# In[ ]:
+# %%
 
 def get_all_google_wmo():
     
@@ -1125,7 +1126,7 @@ def get_all_google_qcdata(smartflag=False):
     return qc_df
 
 
-# In[ ]:
+# %%
 
 
 def make_qcdata_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
@@ -1195,7 +1196,7 @@ def make_qcdata_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
     return False
 
 
-# In[ ]:
+# %%
 
 
 def make_smart_qartod_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
@@ -1283,7 +1284,7 @@ def make_smart_qartod_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
 
 # # General metadata wrapper function
 
-# In[ ]:
+# %%
 
 
 def make_projects_metadata(loc_ids=None, rebuild_flag=False):
