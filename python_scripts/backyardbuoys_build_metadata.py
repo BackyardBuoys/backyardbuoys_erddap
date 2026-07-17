@@ -728,7 +728,7 @@ def make_metadata_json(basedir, bb_loc, loc_meta, spotters_dict, rebuildFlag=Fal
     # then write out a new file
     if make_json:
         with open(filepath, 'w') as bb_json:
-            json.dump(datadict, bb_json)
+            json.dump(datadict, bb_json, indent=4)
         
     return
 
@@ -1074,7 +1074,7 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
             
     if make_json:
         with open(infodir, 'w') as info_json:
-            json.dump(infodict, info_json)
+            json.dump(infodict, info_json, indent=4)
         
     return addspotterFlag
 
@@ -1191,7 +1191,7 @@ def make_qcdata_json(basedir, bb_loc, qc_df=None, rebuildFlag=False):
             
     if make_json:
         with open(filepath, 'w') as bb_json:
-            json.dump(datadict, bb_json)
+            json.dump(datadict, bb_json, indent=4)
         
     return False
 
