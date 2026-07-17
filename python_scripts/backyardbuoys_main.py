@@ -308,6 +308,8 @@ def main():
                     break
         if not(rebuildPeriodFlag):
             rebuild_period = None
+    else:
+        rebuild_period = None
 
     # ========================================================================
     # Validate QC Tests Flag Option
