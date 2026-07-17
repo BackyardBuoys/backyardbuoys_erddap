@@ -33,6 +33,7 @@ Author: Seth Travis
 Organization: Backyard Buoys
 """
 
+import datetime
 import json
 import os
 import sys
@@ -79,12 +80,12 @@ def main():
     # ========================================================================
     try:
         # Parse options and arguments
-        # Short options: h, u, p:, l:, r:, q:
+        # Short options: h, u, p:, l:, r:, t:, q:
         # Long options: help, process=, location=, rebuild=, qctests=
         opts, args = getopt.getopt(
             sys.argv[1:], 
-            "hu:p:l:r:q:", 
-            ["help", "process=", "location=", "rebuild=", "qctests"]
+            "hu:p:l:r:t:q:", 
+            ["help", "process=", "location=", "rebuild=", "rebuildPeriod=", "qctests="]
         )
     except Exception as inst:
         # Print error if option parsing fails
@@ -95,10 +96,11 @@ def main():
     # Initialize Flags for Command-Line Options
     # ========================================================================
     # These flags track which command-line options were provided
-    processFlag = False    # Was -p/--process provided?
-    locFlag = False        # Was -l/--location provided?
-    rebuildFlag = False    # Was -r/--rebuild provided?
-    qctestFlag = False     # Was -q/--qctests provided?
+    processFlag = False         # Was -p/--process provided?
+    locFlag = False             # Was -l/--location provided?
+    rebuildFlag = False         # Was -r/--rebuild provided?
+    rebuildPeriodFlag = False   # Was -rp/--rebuildPeriod provided?
+    qctestFlag = False          # Was -q/--qctests provided?
 
     # ========================================================================
     # Process Each Command-Line Option
@@ -118,6 +120,7 @@ def main():
             print('   -p/process')
             print('   -l/location')
             print('   -r/rebuild')
+            print('   -rp/rebuildPeriod')
             print('   -q/qctests')
             print('\n  "help":')
             print('     Help listing to provide information on using the project')
@@ -138,6 +141,10 @@ def main():
             print('     Flags whether the datasets should be rebuilt.')
             print('     Note: this can only be used from the "addData" process')
             print('     Valid rebuild flags are "true"/"false"')
+            print('\n  "rebuildPeriod":')
+            print('     (OPTIONAL) Provides the period for which the datasets should be rebuilt.')
+            print('     Note: this can only be used from the "addData" process and with the "rebuild" flag set to "true"')
+            print('     Valid rebuild period format is "YYYY-MM-DD:YYYY-MM-DD"')
             print('\n  "qctests":')
             print('     Flags whether quality control tests for the datasets should be rerun.')
             print('     Note: this can only be used from the "addData" process')
@@ -158,6 +165,12 @@ def main():
             # Set rebuild flag and store rebuild option
             rebuildFlag = True
             rebuildName = a
+            
+        elif o in ("-t", "--rebuildPeriod"):
+            # Set rebuild period flag and store rebuild period option
+            rebuildPeriodFlag = True
+            rebuildPeriod = a
+            print('Rebuild period: ', rebuildPeriod)
             
         elif o in ("-q", "--qctests"):
             # Set QC test flag and store qctest option
@@ -261,7 +274,41 @@ def main():
             print('The rebuild flag can only be used for the "addData" or "addMetadata" processes.')
             print('Flag will be set to "false", and process will continue.')
             rebuildFlag = False
-        
+
+    # Rebuild period flag validation
+    # Rebuild period is only valid for the 'addData' process and when rebuildFlag is True
+    if rebuildPeriodFlag:
+        rebuild_period = []
+        if not((processName == 'addData') and rebuildFlag):
+            print('The rebuild period flag can only be used for the "addData" process when the rebuild flag is set to "true".')
+            print('Flag will be ignored.')
+            rebuildPeriodFlag = False
+
+        print('Rebuild period format is: "YYYY-MM-DD" or "YYYY-MM-DD:YYYY-MM-DD"')
+        if not isinstance(rebuildPeriod, str):
+            print('Invalid rebuild period format. It must be a string.')
+            print('Flag will be ignored.')
+            rebuildPeriodFlag = False
+            rebuild_period = None
+        rebuild_period_parts = [part.strip() for part in rebuildPeriod.split(':')]
+        if len(rebuild_period_parts) > 2:
+            print('Invalid rebuild period format. It must be "YYYY-MM-DD" or "YYYY-MM-DD:YYYY-MM-DD".')
+            print('Flag will be ignored.')
+            rebuildPeriodFlag = False
+            rebuild_period = None
+        else:            
+            for part in rebuild_period_parts:
+                try:
+                    rebuild_period.append(datetime.datetime.strptime(part, '%Y-%m-%d'))
+                except ValueError:
+                    print(f'Invalid date format in rebuild period: {part}. It must be "YYYY-MM-DD".')
+                    print('Flag will be ignored.')
+                    rebuildPeriodFlag = False
+                    rebuildFlag = False
+                    break
+        if not(rebuildPeriodFlag):
+            rebuild_period = None
+
     # ========================================================================
     # Validate QC Tests Flag Option
     # ========================================================================
@@ -397,6 +444,12 @@ def main():
             # Process: Add or update data for location(s)
             # Calls data processing functions with rebuild and qctest flags
             if locName.lower() == 'all':
+                if rebuildPeriodFlag:
+                    print('The rebuild period flag can only be used for a single location.')
+                    print('Please restart the program with a specific location name.')
+                    # Exit the program unsuccessfully
+                    sys.exit(2)
+
                 # Update data for all active locations
                 bb_process.update_all_locations(
                     rebuild_flag=rebuildFlag, 
@@ -407,7 +460,8 @@ def main():
                 bb_process.update_data_by_location(
                     locName, 
                     rebuild_flag=rebuildFlag, 
-                    rerun_tests=qctestFlag
+                    rerun_tests=qctestFlag,
+                    rebuild_period=rebuild_period
                 )
         
         elif processName == 'addDataset':

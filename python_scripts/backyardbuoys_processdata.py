@@ -48,7 +48,10 @@ LOG_DATETIME_FORMAT = '%Y-%b-%d %H:%M:%S'  # Format for log messages
 # In[ ]:
 
 
-def load_existing_netcdf(loc_id):
+def load_existing_netcdf(loc_id, rebuild_period=None):
+
+    # If rebuild_period is specified, it should be a list of up to two datetime objects
+
     
     # Get the directory containing the data
     basedir = bb.get_datadir()
@@ -95,13 +98,37 @@ def load_existing_netcdf(loc_id):
             datadates = [datetime.datetime(datayears[ii], datamonths[ii], 1)
                          for ii in range(0,len(datayears))]
             
-            maxind = np.argmax(datadates)
-            lastfile = datafiles[maxind]
-            if maxind > 0:
-                olderFlag = True
+            if (rebuild_period is not None) and (len(rebuild_period) == 2):
+                # If a rebuild period is specified, filter the data files
+                start_date = rebuild_period[0]
+                end_date = rebuild_period[1]
+                valid_rebuild_files = [start_date <= date <= end_date for date in datadates]
+                if any(valid_rebuild_files):
+                    datafiles = [datafiles[ii] for ii in np.where(valid_rebuild_files)[0]]
+                    datadates = [datadates[ii] for ii in np.where(valid_rebuild_files)[0]]
 
-            print('Loading in data from "' + lastfile + '"')
-            ds = xr.load_dataset(os.path.join(datadir, lastfile))
+                    ds = None
+                    for datafile in datafiles:
+                        ds_temp = xr.load_dataset(os.path.join(datadir, datafile))
+                        if ds is None:
+                            ds = ds_temp
+                        else:
+                            ds = xr.concat([ds, ds_temp], dim='time')
+                    if ds is not None:
+                        ds = ds.sortby('time')
+                        olderFlag = True
+                else:
+                    print('No data files found within the specified rebuild period.')
+                    ds = None
+                    return ds, None, olderFlag
+            else:
+                maxind = np.argmax(datadates)
+                lastfile = datafiles[maxind]
+                if maxind > 0:
+                    olderFlag = True
+
+                print('Loading in data from "' + lastfile + '"')
+                ds = xr.load_dataset(os.path.join(datadir, lastfile))
             
             dimnames = [ii for ii in ds.dims]
             varnames = [ii for ii in ds.data_vars]
@@ -156,13 +183,37 @@ def load_existing_netcdf(loc_id):
             datadates = [datetime.datetime(datayears[ii], datamonths[ii], 1)
                          for ii in range(0,len(datayears))]
             
-            maxind = np.argmax(datadates)
-            lastfile = datafiles[maxind]
-            if maxind > 0:
-                olderFlag = True
+            if (rebuild_period is not None) and (len(rebuild_period) == 2):
+                # If a rebuild period is specified, filter the data files
+                start_date = datetime.datetime.strptime(rebuild_period[0], DATETIME_FORMAT)
+                end_date = datetime.datetime.strptime(rebuild_period[1], DATETIME_FORMAT)
+                valid_rebuild_files = [start_date <= date <= end_date for date in datadates]
+                if any(valid_rebuild_files):
+                    datafiles = [datafiles[ii] for ii in np.where(valid_rebuild_files)[0]]
+                    datadates = [datadates[ii] for ii in np.where(valid_rebuild_files)[0]]
 
-            print('Loading in data from "' + lastfile + '"')
-            ds_smart = xr.load_dataset(os.path.join(smartdir, lastfile))
+                    ds_smart = None
+                    for datafile in datafiles:
+                        ds_temp = xr.load_dataset(os.path.join(smartdir, datafile))
+                        if ds_smart is None:
+                            ds_smart = ds_temp
+                        else:
+                            ds_smart = xr.concat([ds_smart, ds_temp], dim='time')
+                    if ds_smart is not None:
+                        ds_smart = ds_smart.sortby('time')
+                        olderFlag = True
+                else:
+                    print('No smart data files found within the specified rebuild period.')
+                    ds_smart = None
+                    return ds, ds_smart, olderFlag
+            else:
+                maxind = np.argmax(datadates)
+                lastfile = datafiles[maxind]
+                if maxind > 0:
+                    olderFlag = True
+
+                print('Loading in data from "' + lastfile + '"')
+                ds_smart = xr.load_dataset(os.path.join(smartdir, lastfile))
             
             dimnames = [ii for ii in ds.dims]
             varnames = [ii for ii in ds.data_vars]
@@ -526,7 +577,7 @@ def get_buoy_qcflags(ds, loc_id, smartflag=False):
 # In[ ]:
 
 
-def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
+def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_period=None):
     
     # Get location info from the metadata info json
     basedir = bb.get_datadir()
@@ -571,12 +622,18 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
             ds_old = ds_old.sortby('time')
         if ds_smart_old is not None:
             ds_smart_old = ds_smart_old.sortby('time')
+    elif (rebuild_period is not None):
+        ds_old, ds_smart_old, olderFlag = load_existing_netcdf(loc_id, rebuild_period=rebuild_period)
+        if ds_old is not None:
+            ds_old = ds_old.sortby('time')
+        if ds_smart_old is not None:
+            ds_smart_old = ds_smart_old.sortby('time')
     else:
         ds_old = None
         ds_smart_old = None
     
     # If there is any existing data, get the last time stamp
-    if (ds_old is not None) and not(rebuild_flag):
+    if (ds_old is not None) and (not(rebuild_flag) or (rebuild_period is not None)):
         # Extract out the first and last date
         # of the existing dataset
         firsttime = pd.Timestamp(ds_old['time'].data[0]).to_pydatetime()
@@ -598,29 +655,44 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
         else:
             firstshift = datetime.timedelta(hours=0)
             
-        pulltime = np.max([firsttime-firstshift,
+        pull_starttime = np.max([firsttime-firstshift,
                            (lasttime.replace(hour=0,minute=0,second=0,microsecond=0) 
                             - datetime.timedelta(hours=12))])
+        pull_endtime = None
     elif rebuild_flag:
-        pulltime = datetime.datetime(2022,6,1)
-        ds_old = None
-        ds_smart_old = None
+        if rebuild_period is not None:
+            pull_starttime = rebuild_period[0]
+            pull_endtime = rebuild_period[1]
+        else:
+            pull_starttime = datetime.datetime(2022,6,1)
+            pull_endtime = None
+            ds_old = None
+            ds_smart_old = None
+        
     else:
-        pulltime = None
+        pull_starttime = None
+        pull_endtime = None
         ds_old = None
         ds_smart_old = None
     
     # Load in the data from the Backyard Buoys data API
     # Note, that for now, nothing is done with the smart mooring data (i.e., "ds_smart")
-    if pulltime is not None:
+    if pull_starttime is not None and pull_endtime is not None:
         print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
-              ': Pull data since ' + pulltime.strftime(DATETIME_FORMAT))
-        pulltime = pulltime.strftime(DATETIME_FORMAT)
+              ': Pull data from ' + pull_starttime.strftime(DATETIME_FORMAT) + 
+              ' to ' + pull_endtime.strftime(DATETIME_FORMAT))
+        pull_starttime = pull_starttime.strftime(DATETIME_FORMAT)
+        pull_endtime = pull_endtime.strftime(DATETIME_FORMAT)
+    elif pull_starttime is not None:
+        print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
+              ': Pull data since ' + pull_starttime.strftime(DATETIME_FORMAT))
+        pull_starttime = pull_starttime.strftime(DATETIME_FORMAT)
     else:
         print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
               ': Pull data since the beginning of the data record.')
         print('   Data record begins at API default start date.')
-    ds, ds_smart = get_data_by_location(loc_id, time_start=pulltime)
+    ds, ds_smart = get_data_by_location(loc_id, time_start=pull_starttime,
+                                        time_end=pull_endtime)
     if ds is None:
         print('   Return without processing any data')
         return None, None
@@ -1536,16 +1608,15 @@ def add_wmo_code_to_data(loc_id):
 # In[ ]:
 
 
-def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False):
+def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_period=None):
     
     basedir = bb.get_datadir()
     
     # Create and/or update the location info json
-    updatespotterFlag = update_location_info(loc_id, rebuild_flag)
+    updatespotterFlag = update_location_info(loc_id, rebuild_flag=rebuild_flag)
     
     # If update_location_info returns False, the location has no recent data
     # and cannot be processed
-    print(updatespotterFlag, not(rebuild_flag))
     if (updatespotterFlag is False) and not(rebuild_flag):
         print(f'{loc_id}: No recent data available. Cannot process location.')
         return False
@@ -1561,7 +1632,7 @@ def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False):
             return False
     
     # Download any new data
-    ds_all, ds_all_smart = process_newdata(loc_id, rebuild_flag)
+    ds_all, ds_all_smart = process_newdata(loc_id, rebuild_flag=rebuild_flag, rebuild_period=rebuild_period)
     if ds_all is None:
         print('As there is no data, no netCDF is created. End the process, and move on.')
         return False
