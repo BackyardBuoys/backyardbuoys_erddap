@@ -65,7 +65,7 @@ def load_all_qc_limits(loc_id):
                'sea_surface_wave_from_direction_at_variance_spectral_density_maximum',
                'sea_surface_wave_directional_spread_at_variance_spectral_density_maximum',
                'sea_surface_wave_significant_height',
-               'sea_surface_temperature']
+               'sea_water_temperature']
 
     # Initialize an empty dictionary to hold all the limits
     qc_dict = {}
@@ -221,7 +221,7 @@ def load_all_qc_limits_excel(loc_id):
                'sea_surface_wave_from_direction_at_variance_spectral_density_maximum',
                'sea_surface_wave_directional_spread_at_variance_spectral_density_maximum',
                'sea_surface_wave_significant_height',
-               'sea_surface_temperature']
+               'sea_water_temperature']
 
     # Initialize an empty dictionary to hold all the limits
     qc_dict = {}
@@ -469,14 +469,15 @@ def process_qartod_tests(ds, sensor_names, qc_limits, smartflag=False):
     if smartflag:
         qartod_valid_sensors = bb_process.get_valid_smart_vars(ds)
     else:
-        qartod_valid_sensors = ['sea_surface_wave_significant_height','sea_surface_temperature', 
+        qartod_valid_sensors = ['sea_surface_wave_significant_height',
                                 'sea_surface_wave_period_at_variance_spectral_density_maximum', 
                                 'sea_surface_wave_from_direction_at_variance_spectral_density_maximum', 
                                 'sea_surface_wave_directional_spread_at_variance_spectral_density_maximum',
                                 'sea_surface_wave_mean_period', 
                                 'sea_surface_wave_from_direction', 'sea_surface_wave_directional_spread',
                                 'sea_surface_wave_frequency_at_variance_spectral_density_maximum', 
-                                'sea_surface_wave_mean_frequency']
+                                'sea_surface_wave_mean_frequency',
+                                'sea_water_temperature']
     qartod_df = []
     NT = ds['time'].size
     

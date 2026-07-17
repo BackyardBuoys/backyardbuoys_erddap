@@ -478,7 +478,7 @@ def rename_dataframe_columns(df, smartflag=False):
                           'sea_surface_wave_period_at_variance_spectral_density_maximum',
                           'sea_surface_wave_from_direction_at_variance_spectral_density_maximum',
                           'sea_surface_wave_directional_spread_at_variance_spectral_density_maximum',
-                          'sea_surface_temperature'
+                          'sea_water_temperature'
                          ]
     
     rename_dict = {}
@@ -545,6 +545,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
     if (infodict is not None) and ('spotter_data' in infodict.keys()):        
         spotter_list = []
         valid_spotters = []
+        ndbc_share_spotters = []
         # Filter out empty strings from spotter list
         spotter_list = [ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()]    
         for spotter in spotter_list:
@@ -552,6 +553,14 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
                 and
                 (infodict['spotter_data'][spotter]['can_share_ndbc_nws'] == 'yes')):
                 valid_spotters.append(spotter)
+                ndbc_share_spotters.append(spotter)
+            elif ((infodict['spotter_data'][spotter]['can_data_archive'] == 'yes')
+                and
+                (infodict['spotter_data'][spotter]['can_share_ndbc_nws'] == 'no')):
+                print('Data for ' + spotter + ' can be archived, but cannot be shared with NDBC/NWS.')
+                print('This data can be included in the dataset, but not shared with NDBC/NWS.')
+                valid_spotters.append(spotter)
+                
         check_spotters = True
 
     
@@ -635,7 +644,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
             for spotter in drop_spotters:
                 print('   Data for ' + spotter + ' is not authorized to be archived.')
                 print('   Drop this data from the dataset.')
-                ds.drop(index=ds[ds['platform_id']==spotter].index).reset_index(drop=True)
+                ds = ds.drop(index=ds[ds['platform_id']==spotter].index).reset_index(drop=True)
             if len(ds) == 0:
                 print('   No data remains to process. Return without processing any data.')
                 return None, None
@@ -719,7 +728,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
         # Ensure that only data from spotters that has been authorized
         # is included for archiving
         if check_spotters:
-            unique_spots = np.unique(ds.loc[:,'platform_id']).tolist()
+            unique_spots = np.unique(ds_smart.loc[:,'platform_id']).tolist()
             if any([spot not in valid_spotters for spot in unique_spots]):
                 drop_spotters = [unique_spots[ii] for ii in
                                  np.where([spot not in valid_spotters 
@@ -727,8 +736,8 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False):
                 for spotter in drop_spotters:
                     print('   Data for ' + spotter + ' is not authorized to be archived.')
                     print('   Drop this data from the dataset.')
-                    ds.drop(index=ds[ds['platform_id']==spotter].index).reset_index(drop=True)
-                if len(ds) == 0:
+                    ds_smart = ds_smart.drop(index=ds_smart[ds_smart['platform_id']==spotter].index).reset_index(drop=True)
+                if len(ds_smart) == 0:
                     print('   No data remains to process. Return without processing any data.')
                     return None, None
 
@@ -960,7 +969,7 @@ def netcdf_add_global_metadata(dataset, loc_id, smartflag=False):
     dataset.history = 'Making the files'
     dataset.sourceUrl = 'https://data.backyardbuoys.org/'
     dataset.infoUrl = 'https://backyardbuoys.org/'
-    dataset.keywords = 'buoy, direction, directional, earth, Earth Science &gt; Oceans &gt; Ocean Temperature &gt; Sea Surface Temperature, Earth Science &gt; Oceans &gt; Ocean Waves &gt; Significant Wave Height, Earth Science &gt; Oceans &gt; Ocean Waves &gt; Wave Period, Earth Science &gt; Oceans &gt; Ocean Waves &gt; Wave Spectra, Earth Science &gt; Oceans &gt; Ocean Waves &gt; Wave Speed/Direction, nsf, observing, ocean, oceans, period, sea_surface_temperature, sea_surface_wave_directional_spread, sea_surface_wave_directional_spread_at_variance_spectral_density_maximum, sea_surface_wave_from_direction, sea_surface_wave_from_direction_at_variance_spectral_density_maximum, sea_surface_wave_mean_period, sea_surface_wave_period_at_variance_spectral_density_maximum, sea_surface_wave_significant_height, surface, surface waves, watertemp, time, wave, waves'
+    dataset.keywords = 'buoy, direction, directional, earth, Earth Science &gt; Oceans &gt; Ocean Temperature &gt; Sea Surface Temperature, Earth Science &gt; Oceans &gt; Ocean Waves &gt; Significant Wave Height, Earth Science &gt; Oceans &gt; Ocean Waves &gt; Wave Period, Earth Science &gt; Oceans &gt; Ocean Waves &gt; Wave Spectra, Earth Science &gt; Oceans &gt; Ocean Waves &gt; Wave Speed/Direction, nsf, observing, ocean, oceans, period, sea_water_temperature, sea_surface_wave_directional_spread, sea_surface_wave_directional_spread_at_variance_spectral_density_maximum, sea_surface_wave_from_direction, sea_surface_wave_from_direction_at_variance_spectral_density_maximum, sea_surface_wave_mean_period, sea_surface_wave_period_at_variance_spectral_density_maximum, sea_surface_wave_significant_height, surface, surface waves, watertemp, time, wave, waves'
     dataset.keywords_vocabulary = 'GCMD Science Keywords'
     dataset.standard_name_vocabulary = 'CF Standard Name Table v85'
 
@@ -1143,16 +1152,16 @@ def netcdf_add_variables(dataset, loc_id, ds):
     ###
     # Sea surface temperature
     
-    seatemp = dataset.createVariable('sea_surface_temperature','f8',('location_id','time'))
-    seatemp.standard_name = 'sea_surface_temperature'
-    seatemp.long_name = 'sea_surface_temperature'
+    seatemp = dataset.createVariable('sea_water_temperature','f8',('location_id','time'))
+    seatemp.standard_name = 'sea_water_temperature'
+    seatemp.long_name = 'sea_water_temperature'
     seatemp.description = 'Sea Water Temperature at the Surface'
     seatemp.ioos_category = 'Temperature'
     seatemp.units = 'degrees_C'
     seatemp.coverage_content_type = 'physicalMeasurement'
     seatemp.gts_ingest = 'true'
-    seatemp.ancillary_variables = make_ancvar_str('sea_surface_temperature')
-    seatemp[:] = ds['sea_surface_temperature']
+    seatemp.ancillary_variables = make_ancvar_str('sea_water_temperature')
+    seatemp[:] = ds['sea_water_temperature']
     
     
     
@@ -1170,11 +1179,11 @@ def netcdf_add_variables(dataset, loc_id, ds):
                 'sea_surface_wave_period_at_variance_spectral_density_maximum',
                 'sea_surface_wave_from_direction_at_variance_spectral_density_maximum',
                 'sea_surface_wave_directional_spread_at_variance_spectral_density_maximum',
-                'sea_surface_temperature']
+                'sea_water_temperature']
     varlabs = ['Significant Wave Height of Surface Waves',
                'Mean Wave Period', 'Mean Wave Direction', 'Mean Wave Directional Spread',
                'Peak Wave Period', 'Peak Wave Direction', 'Peak Wave Directional Spread',
-               'Sea Surface Temperature']
+               'Sea Water Temperature']
     
     origqc_vars = ['qc_agg', 
                    'qc_gross_range_test', 'qc_rate_of_change_test',
@@ -1476,6 +1485,11 @@ def write_netcdf(ds, loc_id, datayear, datamonth, smart_vars=None):
                     os.path.join(datadir,newfile))
         print('   ' + datetime.datetime.now().strftime('%Y-%b-%d %H:%M:%S') + 
           ': ' + newfile + ' successfully replaced.')
+    else:
+        print('   ' + datetime.datetime.now().strftime('%Y-%b-%d %H:%M:%S') + 
+          ': ' + tempfile + ' not replaced with ' + newfile)
+        print('   Something went wrong. Check the error messages above.')
+        shutil.remove(os.path.join(datadir,tempfile))
         
         
     
@@ -1527,11 +1541,12 @@ def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False):
     basedir = bb.get_datadir()
     
     # Create and/or update the location info json
-    addspotterFlag = update_location_info(loc_id, rebuild_flag)
+    updatespotterFlag = update_location_info(loc_id, rebuild_flag)
     
     # If update_location_info returns False, the location has no recent data
     # and cannot be processed
-    if (addspotterFlag is False) and not(rebuild_flag):
+    print(updatespotterFlag, not(rebuild_flag))
+    if (updatespotterFlag is False) and not(rebuild_flag):
         print(f'{loc_id}: No recent data available. Cannot process location.')
         return False
     
@@ -1540,7 +1555,7 @@ def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False):
     if not(os.path.exists(metadir)):
         print('   No metadata exists for project: ' + loc_id)
         print('   Try to make the meta data for project: ' + loc_id)
-        meta_success = bb_meta.make_projects_metadata(loc_id, addspotterFlag)
+        meta_success = bb_meta.make_projects_metadata(loc_id, updatespotterFlag)
         if not(meta_success):
             print('Unable to make the data file for this project')
             return False
@@ -1770,9 +1785,13 @@ def update_location_info(loc_id, rebuild_flag=False):
         if loc_info['status'] == 'active':
             activeFlag = True
         
+        print('Update recent data for location ID: ' + loc_id + ' at ' + wavedate.strftime('%Y-%m-%dT%H:%M:%SZ'))
             
         # Update the date of recent data
-        infodict['recent_date'] = wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')
+        if (datetime.datetime.strptime(infodict['recent_date'], '%Y-%m-%dT%H:%M:%SZ') <
+            wavedate):
+            infodict['recent_date'] = wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')
+            addspotterFlag = True
         infodict['active'] = activeFlag
         
         if addspotterFlag:
@@ -1793,6 +1812,10 @@ def update_location_info(loc_id, rebuild_flag=False):
             infodict['loc_history'][wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')] = loc_info
         
     else:
+        ###############################################################
+        ## If the info path does not exist, then create a new info json  
+        print('No location info json exists for project: ' + loc_id + '. Create a new info json.')
+
         bb_locs = bb_da.bbapi_get_locations()
         if not(any([loc == loc_id for loc in bb_locs.keys()])):
             print('No recent data for location ID: ' + loc_id)
@@ -1871,6 +1894,7 @@ def update_location_info(loc_id, rebuild_flag=False):
             or
             ('spotter_data' not in check_json.keys())
            ):
+            print('Location info json has changed. Archive the old file, and write a new one.')
             archive_name = (loc_id + '_info_' + 
                             datetime.datetime.now().strftime('%Y%m%d') + '.json')
             shutil.move(infodir, os.path.join(sourcedir, 'archive', archive_name))
@@ -1879,7 +1903,7 @@ def update_location_info(loc_id, rebuild_flag=False):
             
     if make_json:
         with open(infodir, 'w') as info_json:
-            json.dump(infodict, info_json)
+            json.dump(infodict, info_json, indent=4)
         
     return addspotterFlag
 
