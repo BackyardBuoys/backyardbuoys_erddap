@@ -244,6 +244,7 @@ def get_data_by_location(location_id, vars_to_get = 'ALL',
     if (location_data is None) or (len(location_data) == 0):
         print('No data pulled.')
         return None, None
+        
     
     ###############################################
     # Use location data to build a pandas dataframe
@@ -456,6 +457,214 @@ def get_data_by_location(location_id, vars_to_get = 'ALL',
     return total_data, smart_data
 
 
+def get_data_by_platform(platform_id, vars_to_get = 'ALL', 
+                         time_start=None, time_end=None):
+    
+    ####################################
+    # Pull data for for a given location
+    platform_data = bb_da.bbapi_get_platform_data(platform_id, vars_to_get, 
+                                                  time_start, time_end)
+    if (platform_data is None) or (len(platform_data) == 0):
+        print('No data pulled.')
+        return None, None
+        
+    
+    ###############################################
+    # Use platform data to build a pandas dataframe
+    
+    def append_newvar(tot_dat, test_dat):
+        
+        # This function is used to append on each new variable 
+        # to the total dataframe
+        
+        if test_dat is None:
+            return tot_dat
+        elif (tot_dat is None) and (test_dat is not None):
+            # Return the test data as the initial dataset
+            return test_dat.copy()
+        
+        # Match timestamps between existing data and new variable data
+        # This ensures variables from the same observation are aligned
+        basematchinds = []  # Indices in the existing total_data
+        matchinds = []      # Indices in the new test_dat
+        nonmatchinds = []   # Indices in test_dat that don't match total_data
+        
+        if len(test_dat) > 1:
+            # Check each new data point against existing data
+            for ii in range(0,len(test_dat)):
+                # Look for matching point ID
+                if any(tot_dat.pt_id == test_dat.pt_id.to_numpy().squeeze()[ii]):
+
+                    # Found a match - record both indices
+                    basematchinds.append(np.where(tot_dat.pt_id == test_dat.pt_id.to_numpy().squeeze()[ii])[0][0])
+                    matchinds.append(ii)
+                else:
+                    # No match found - this is new data
+                    nonmatchinds.append(ii)
+
+
+            # Handle data merging based on matching results
+            if len(matchinds) == len(tot_dat):
+                # Perfect match - all timestamps align, just add the variable column
+                tot_dat.loc[basematchinds,varname] = test_dat.loc[matchinds,varname].to_numpy().squeeze()
+            else:
+                # Partial or no match - need to merge carefully
+
+                # First, add matching data points to their correct locations
+                if len(matchinds) > 0:
+                    tot_dat.loc[basematchinds,varname] = test_dat.loc[matchinds,varname].to_numpy().squeeze()
+
+                # Then append non-matching data as new rows
+                # Fill missing columns with NaNs
+                if len(nonmatchinds) > 0:
+                    # Create the variable column if it doesn't exist yet
+                    if varname not in tot_dat.columns:
+                        print('   ...Variable does not yet exist: ', varname)
+                        tot_dat.loc[:,varname] = np.nan*np.ones(len(tot_dat))
+                    # Concatenate the non-matching rows
+                    tot_dat = pd.concat([tot_dat, 
+                                         test_dat.iloc[nonmatchinds,:]]).reset_index(drop=True)
+                    print('   ...Some mismatched for ' + varname + ': ' + str(len(nonmatchinds)) + ' points') 
+
+
+        elif len(test_dat) == 1:
+            tot_dat.loc[0,varname] = test_dat.loc[0,varname]
+
+        return tot_dat
+    
+    # Extract variable data from location data and organize by depth
+    # Surface measurements (depth=0) go to varnames
+    # Subsurface measurements (depth≠0) go to smartvars (smart mooring sensors)
+    loc_data_topds = {}
+    varnames = []        # Surface wave buoy variables
+    smartvars = []       # Smart mooring sensor variables
+    smartdepths = []     # Depths of smart mooring sensors
+    
+    for varname in location_data.keys():
+        loc_data_topds[varname] = {}
+        loc_data_topds[varname]['units'] = location_data[varname]['units']
+        data_colnames = [ii for ii in location_data[varname]['data'].keys()]
+        temp_pd = pd.DataFrame(data = location_data[varname]['data'],
+                               columns=data_colnames)
+        # Rename 'value' column to the variable name for clarity
+        data_colnames = [varname if ii == 'value' else ii for ii in data_colnames]
+        loc_data_topds[varname]['data'] = temp_pd.rename(columns={"value": varname})
+        
+        # Categorize variables by depth
+        if any(loc_data_topds[varname]['data']['depth']==0):
+            varnames.append(varname)  # Surface measurement
+        if any(loc_data_topds[varname]['data']['depth']!=0):
+            smartvars.append(varname)  # Subsurface measurement
+            smartdepths.append(np.unique(loc_data_topds[varname]['data']['depth'])[0])
+    
+    # Initialize separate dataframes for surface and subsurface data
+    # Surface data: Wave buoy measurements (depth = 0)
+    # Smart data: Smart mooring sensors (depth ≠ 0)
+    if len(varnames) > 0:
+        # Start with the first surface variable
+        test_data = loc_data_topds[varnames[0]]['data'].copy()
+        total_data = test_data[test_data['depth'] == 0].reset_index(drop=True)
+
+        # Create a unique "point ID" for each observation
+        # Used to match data points across different variables
+        total_data['pt_id'] = [str(total_data['timestamp'][ii]) 
+                               for ii in range(0,len(total_data))]
+    else:
+        total_data = None
+
+    if len(smartvars) > 0:
+        # Start with the first smart mooring variable
+        test_data = loc_data_topds[smartvars[0]]['data'].copy()
+        smart_data = test_data[test_data['depth'] != 0].reset_index(drop=True)
+
+        # Create a unique "point ID" combining timestamp and depth
+        smart_data['pt_id'] = [str(smart_data['timestamp'][ii]) 
+                               for ii in range(0,len(smart_data))]
+    else:
+        smart_data = None
+
+        
+    
+    # Step through all additional variables, and append them
+    # to the total data dataframes
+    for varname in varnames[1:]:
+        # Extract out the data
+        alltest_data = loc_data_topds[varname]['data'].copy()
+        
+        # Create a "point ID", created as a combination of
+        # data timestamp and depth
+        alltest_data['pt_id'] = [str(alltest_data['timestamp'][ii]) 
+                                 for ii in range(0,len(alltest_data))]
+        
+        # Take each variables data, and put it into a dataframe
+        if any(alltest_data != 0):
+            test_data = alltest_data[alltest_data['depth'] == 0].reset_index(drop=True)
+            smarttest_data = alltest_data[alltest_data['depth'] != 0].reset_index(drop=True)
+            if smarttest_data.shape[0] == 0:
+                smarttest_data = None  
+        else:
+            test_data = alltest_data.copy()
+            smarttest_data = None
+            
+        total_data = append_newvar(total_data, test_data)
+        if smarttest_data is not None:
+            smart_data = append_newvar(smart_data, smarttest_data)
+            
+            
+    # Step through all additional variables, and append them
+    # to the total data dataframes
+    for varname in smartvars[1:]:
+        # Extract out the data
+        alltest_data = loc_data_topds[varname]['data'].copy()
+        
+        # Create a "point ID", created as a combination of
+        # data timestamp and depth
+        alltest_data['pt_id'] = [str(alltest_data['timestamp'][ii]) 
+                                 for ii in range(0,len(alltest_data))]
+        
+        # Take each variables data, and put it into a dataframe
+        if any(alltest_data != 0):
+            smarttest_data = alltest_data[alltest_data['depth'] != 0].reset_index(drop=True)
+        else:
+            smarttest_data = None
+            
+        if smarttest_data is not None:
+            smart_data = append_newvar(smart_data, smarttest_data)
+        
+        
+        
+        
+
+            
+    
+    # Convert Unix timestamps to datetime objects
+    # Use vectorized pandas operation for efficiency
+    total_data_time = total_data.timestamp.to_numpy()
+    if len(total_data_time) > 1:
+        # Vectorized conversion is much faster than list comprehension
+        total_data['time'] = pd.to_datetime(total_data.timestamp, unit='s', errors='coerce')
+    else:
+        total_data['time'] = pd.to_datetime(total_data.timestamp, unit='s')
+    
+    # Drop any data with bad "time" values
+    total_data = total_data.dropna(subset='time').reset_index(drop=True)
+    
+    if smart_data is not None:
+        # Convert Unix timestamps to datetime objects using vectorized operation
+        total_data_time = smart_data.timestamp.to_numpy()
+        if len(total_data_time) > 1:
+            smart_data['time'] = pd.to_datetime(smart_data.timestamp, unit='s', errors='coerce')
+        else:
+            smart_data['time'] = pd.to_datetime(smart_data.timestamp, unit='s')
+
+        # Drop any data with bad "time" values
+        smart_data = smart_data.dropna(subset='time').reset_index(drop=True)
+        
+            
+    
+    return total_data, smart_data
+
+
 # In[ ]:
 
 
@@ -599,6 +808,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
         ndbc_share_spotters = []
         # Filter out empty strings from spotter list
         spotter_list = [ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()]    
+        print('   Spotter list: ' + str(spotter_list))
         for spotter in spotter_list:
             if ((infodict['spotter_data'][spotter]['can_data_archive'] == 'yes')
                 and
@@ -691,6 +901,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
         print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
               ': Pull data since the beginning of the data record.')
         print('   Data record begins at API default start date.')
+
     ds, ds_smart = get_data_by_location(loc_id, time_start=pull_starttime,
                                         time_end=pull_endtime)
     if ds is None:
@@ -698,6 +909,17 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
         return None, None
     print('   ' + datetime.datetime.now().strftime(LOG_DATETIME_FORMAT) + 
               ': Data pulled')
+    
+    def check_valid_spotters(ds, valid_spotters):
+        unique_spots = np.unique(ds.loc[:,'platform_id']).tolist()
+        print(unique_spots)
+        print(valid_spotters)
+        if any([spot not in valid_spotters for spot in unique_spots]):
+            drop_spotters = [unique_spots[ii] for ii in
+                             np.where([spot not in valid_spotters 
+                                       for spot in unique_spots])[0]]
+            return drop_spotters
+        return []
     
     
     #####################
@@ -710,9 +932,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
     if check_spotters:
         unique_spots = np.unique(ds.loc[:,'platform_id']).tolist()
         if any([spot not in valid_spotters for spot in unique_spots]):
-            drop_spotters = [unique_spots[ii] for ii in
-                             np.where([spot not in valid_spotters 
-                                       for spot in unique_spots])[0]]
+            drop_spotters = check_valid_spotters(ds, valid_spotters)
             for spotter in drop_spotters:
                 print('   Data for ' + spotter + ' is not authorized to be archived.')
                 print('   Drop this data from the dataset.')
@@ -802,9 +1022,7 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
         if check_spotters:
             unique_spots = np.unique(ds_smart.loc[:,'platform_id']).tolist()
             if any([spot not in valid_spotters for spot in unique_spots]):
-                drop_spotters = [unique_spots[ii] for ii in
-                                 np.where([spot not in valid_spotters 
-                                           for spot in unique_spots])[0]]
+                drop_spotters = check_valid_spotters(ds_smart, valid_spotters)
                 for spotter in drop_spotters:
                     print('   Data for ' + spotter + ' is not authorized to be archived.')
                     print('   Drop this data from the dataset.')
@@ -1613,7 +1831,7 @@ def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False, rebui
     basedir = bb.get_datadir()
     
     # Create and/or update the location info json
-    updatespotterFlag = update_location_info(loc_id, rebuild_flag=rebuild_flag)
+    updatespotterFlag = update_location_info(loc_id, rebuild_flag=rebuild_flag, rebuild_period=rebuild_period)
     
     # If update_location_info returns False, the location has no recent data
     # and cannot be processed
@@ -1715,7 +1933,7 @@ def get_valid_smart_vars(ds):
 # In[ ]:
 
 
-def update_location_info(loc_id, rebuild_flag=False):
+def update_location_info(loc_id, rebuild_flag=False, rebuild_period=None):
     
     
     def _extract_platform_ids(platform_id_data):
@@ -1737,6 +1955,7 @@ def update_location_info(loc_id, rebuild_flag=False):
     sourcedir = os.path.join(basedir, loc_id, 'metadata')
     infodir = os.path.join(sourcedir, loc_id +'_info.json')
 
+
     
     # If the info path already exists, 
     # load in the info json, and update the relevant fields
@@ -1752,22 +1971,53 @@ def update_location_info(loc_id, rebuild_flag=False):
                             if ii.strip()]
         else:
             spotter_list = [infodict['spotter_ids']] if infodict['spotter_ids'] else []
-           
+        print(spotter_list)
+
+        # If the rebuild flag is set, we will rebuild the location info json, which will require getting all the location data    
+        if rebuild_flag:
+            loc_history = infodict['loc_history']
+            if len(loc_history) > 0:
+                loc_dates = [datetime.datetime.strptime(ii, '%Y-%m-%dT%H:%M:%SZ') for ii in loc_history.keys()]
+                max_date = max(loc_dates).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+            if rebuild_period is not None:
+                if len(loc_history) > 1:
+                    if len(rebuild_period) > 1:
+                        overlap_inds = [(rebuild_period[0] <= ii <= rebuild_period[1]) for ii in loc_dates]
+                    else:
+                        overlap_inds = [(rebuild_period[0] <= ii) for ii in loc_dates]
+                    loc_history = {ii:loc_history[ii] for jj, ii in enumerate(loc_history) if overlap_inds[jj]}
+                    loc_dates = [datetime.datetime.strptime(ii, '%Y-%m-%dT%H:%M:%SZ') for ii in loc_history.keys()]
+
+                    
+
+            loc_nbound = [loc_history[ii]['lat_n'] for ii in loc_history]
+            loc_sbound = [loc_history[ii]['lat_s'] for ii in loc_history]
+            loc_ebound = [loc_history[ii]['lon_e'] for ii in loc_history]
+            loc_wbound = [loc_history[ii]['lon_w'] for ii in loc_history]
+            loc_status = [loc_history[ii]['status'] for ii in loc_history]
+        else:
+            loc_history = []
         
         # Load in the location info
-        bb_locs = bb_da.bbapi_get_locations(recentFlag=True)
+        loccheck = True if not(rebuild_flag) else False
+        print('Check for recent data: ' + str(loccheck))
+        bb_locs = bb_da.bbapi_get_locations(recentFlag=loccheck)
         addspotterFlag = False
         if not(any([loc == loc_id for loc in bb_locs.keys()])) and not(rebuild_flag):
             print('No recent data for location ID: ' + loc_id)
             print('Do not update location info.')
             return False
         
-        try:
-            # If there is recent data (i.e., less than 30 days old)
-            # then the API call will have that data, which can be extracted
-            loc_info = bb_locs[loc_id]
+
+        # If there is recent data (i.e., less than 30 days old)
+        # then the API call will have that data, which can be extracted
+        loc_info = bb_locs[loc_id]
+        if 'data' in loc_info.keys():
+            print(loc_info)
             loc_data = loc_info['data']
             del loc_info['data']
+            print(loc_inf)
 
             # From the most recent data,
             # get the timestamp of the wave height data
@@ -1784,22 +2034,70 @@ def update_location_info(loc_id, rebuild_flag=False):
                         for spotter in spotter_list])):
                 addspotterFlag = True
                 new_spotter_list.append(new_spotter)
+
+        elif rebuild_flag:
+
+            new_spotter_list = []
+
+            for loc in loc_history:
+                print(loc)
+                if not(loc_history[loc]['status'] == 'active'):
+                    print('Historical location info is not active. Pull spotter data directly, and filter for the spatial period.')
+                    wavedate = None
+                    for spotter in spotter_list:
+                        print(spotter)
+                        if rebuild_period is not None:
+                                spot_locdata = bb_da.bbapi_get_platform_data(spotter,
+                                                                            vars_to_get='WaveHeightSig',
+                                                                            time_start=rebuild_period[0].strftime('%Y-%m-%dT%H:%M:%SZ'),
+                                                                            time_end=rebuild_period[1].strftime('%Y-%m-%dT%H:%M:%SZ'))
+                        else:
+                            spot_locdata = bb_da.bbapi_get_platform_data(spotter,
+                                                                        vars_to_get='WaveHeightSig')
+                        if spot_locdata is None:
+                            print(f'No data was found for spotter {spotter}!')
+                            print('Do not add new spotter to location info json.')
+                            continue
+                            
+                        spot_lats = spot_locdata['WaveHeightSig']['data']['lat']
+                        spot_lons = spot_locdata['WaveHeightSig']['data']['lon']
+                        keep_inds = [(loc_history[loc]['lat_s'] <= lat <= loc_history[loc]['lat_n']) and
+                                    (loc_history[loc]['lon_w'] <= lon <= loc_history[loc]['lon_e']) 
+                                    for lat, lon in zip(spot_lats, spot_lons)]
+                        if any(keep_inds):
+                            keep_inds = np.where(keep_inds)[0]
+                        else:
+                            keep_inds = []
+
+                        if any(keep_inds):
+                            addspotterFlag = True
+                            new_spotter_list.append(spotter)
+
+                            # Get the timestamp of the wave height data
+                            max_timestamp = max([spot_locdata['WaveHeightSig']['data']['timestamp'][i] for i in keep_inds])
+                            ref_date = datetime.datetime(1970,1,1)
+                            if wavedate is None:
+                                wavedate = (ref_date + 
+                                            datetime.timedelta(seconds=max_timestamp))
+                            else:
+                                wavedate = max((ref_date + 
+                                                datetime.timedelta(seconds=max_timestamp)),
+                                                wavedate)
+
+
             
-        except:
+        else:
             
             # If there is not recent data for that project,
             # accessing that data from the API will not return
-            # anything.
-            #
+            # anything, and we do not want to rebuild the location info json if there is no recent data
             #
             if (datetime.datetime.strptime(infodict['recent_date'], '%Y-%m-%dT%H:%M:%SZ') <
-                datetime.datetime.now() - datetime.timedelta(days=30)):
+                datetime.datetime.now() - datetime.timedelta(days=30)) and not(rebuild_flag):
                 
                 print('No recent data: do not update location info json.')
                 return False
             else:
-                bb_locs = bb_da.bbapi_get_locations()
-                loc_info = bb_locs[loc_id]
 
                 all_locdata = bb_da.bbapi_get_location_data(loc_id, 
                                               vars_to_get='WaveHeightSig',
@@ -1829,11 +2127,15 @@ def update_location_info(loc_id, rebuild_flag=False):
                         new_spotter_list.append(new_spotter)
                         
         
-        # Get spotter platform data        
-        bb_spots = bb_da.bbapi_get_platforms()
-        spotter_liststr = ''
+        # Update the site info json with the new spotter ID, if it is not already in the list        
+        if addspotterFlag:
+            unique_ids = np.unique([ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()])
+            infodict['spotter_ids'] = ', '.join(unique_ids)     
+
+        bb_spots = bb_da.bbapi_get_platforms(allplatsFlag=True)
+        spotter_list = [ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()]
         spotter_data = {}
-        for spotter in new_spotter_list:
+        for spotter in spotter_list:
             # Skip empty spotter IDs
             if not spotter or not spotter.strip():
                 print(f'   Skipping empty spotter ID')
@@ -1843,30 +2145,23 @@ def update_location_info(loc_id, rebuild_flag=False):
                 print(f'   Warning: Spotter {spotter} not found in platform data')
                 continue
                 
-            if spotter_liststr == '':
-                extra_str = ''
-            else:
-                extra_str = ', '
-            spotter_liststr += extra_str + spotter
             spotter_data[spotter] = bb_spots[spotter]
-        infodict['spotter_ids'] = spotter_liststr
         infodict['spotter_data'] = spotter_data
                 
         activeFlag = False
         if loc_info['status'] == 'active':
             activeFlag = True
         
-        print('Update recent data for location ID: ' + loc_id + ' at ' + wavedate.strftime('%Y-%m-%dT%H:%M:%SZ'))
+        print('Update recent data for location ID: ' + loc_id)
             
         # Update the date of recent data
         if (datetime.datetime.strptime(infodict['recent_date'], '%Y-%m-%dT%H:%M:%SZ') <
             wavedate):
+            print('Most recent wave data date: ' + wavedate.strftime('%Y-%m-%dT%H:%M:%SZ'))
             infodict['recent_date'] = wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')
             addspotterFlag = True
         infodict['active'] = activeFlag
-        
-        if addspotterFlag:
-            infodict['spotter_ids'] = (infodict['spotter_ids'] + ', ' + new_spotter)
+
             
         # Check the location histories, and check if they have changed
         history_dates = [datetime.datetime.strptime(ii, '%Y-%m-%dT%H:%M:%SZ')

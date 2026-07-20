@@ -306,6 +306,16 @@ def main():
                     rebuildPeriodFlag = False
                     rebuildFlag = False
                     break
+
+            if len(rebuild_period) == 2 and rebuild_period[0] > rebuild_period[1]:
+                print('Invalid rebuild period: start date is after end date.')
+                print('Flag will be ignored.')
+                rebuildPeriodFlag = False
+                rebuildFlag = False
+                rebuild_period = None
+            elif len(rebuild_period) == 1:
+                # If only one date is provided, append on tomorrow's date to make it an open-ended rebuild period
+                rebuild_period.append(datetime.datetime.now()+datetime.timedelta(days=1))  # Set end date to tomorrow for open-ended rebuild
         if not(rebuildPeriodFlag):
             rebuild_period = None
     else:

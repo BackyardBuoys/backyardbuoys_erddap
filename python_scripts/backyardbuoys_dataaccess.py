@@ -445,7 +445,7 @@ def bbapi_get_platforms(inactiveFlag=False, retiredFlag=False,
 
 
 
-def bbapi_get_platform_data(platform_id):
+def bbapi_get_platform_data(platform_id, vars_to_get='ALL', time_start=None, time_end=None):
     """
     Retrieve data for a specific buoy platform from Backyard Buoys API.
     
@@ -503,8 +503,17 @@ def bbapi_get_platform_data(platform_id):
     # Set up query parameters
     params = {
         "platform_id": platform_id,  # Spotter buoy ID
-        "var_id": 'ALL'              # Get all variables
+        "var_id": vars_to_get        # Get all variables
     }
+
+    # Add optional time filters if provided
+    if time_start is not None:
+        params['time_start'] = time_start
+    else:
+        params['time_start'] = '2022-01-01T00:00:00Z'
+    if time_end is not None:
+        params['time_end'] = time_end
+    print(params)
 
     # Make GET request to the API
     try:
@@ -520,7 +529,44 @@ def bbapi_get_platform_data(platform_id):
     # Parse and return the JSON response
     lines = response.json()
 
-    return lines
+    if not isinstance(lines, dict) or ('variables' not in lines):
+        return None
+    
+    # Check if any data was returned
+    if len(lines['variables']) == 0:
+        # No data available for this location/time range
+        return None
+    
+    # Restructure the data into a more convenient format
+    # Organize by variable name instead of list index
+    platform_data = {}
+    for line in lines['variables']:
+        # Get the variable name (e.g., 'WaveHeightSig')
+        var_name = line['var_id']
+        
+        # Create a dictionary for this variable
+        platform_data[var_name] = {}
+        
+        # Store the units (e.g., 'm' for wave height)
+        platform_data[var_name]['units'] = line['units']
+        
+        # Restructure the data array into a dictionary of lists
+        # This makes it easier to work with in pandas/numpy
+        extract_data = {}
+        
+        # Initialize empty lists for each data field
+        for item in line['data'][0]:
+            extract_data[item] = []
+
+        # Populate the lists with data from each time point
+        for entry in line['data']:
+            for item in entry:
+                extract_data[item].append(entry[item])
+            
+        # Store the extracted data
+        platform_data[var_name]['data'] = extract_data
+        
+    return platform_data
 
 
 # ============================================================================
