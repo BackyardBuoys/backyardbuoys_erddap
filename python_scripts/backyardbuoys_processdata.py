@@ -471,19 +471,18 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
     
     ####################################
     # Filter the data to the specified location bounds, if provided
-    if vars_to_get == 'ALL':
-        checkvar = 'WaveHeightSig'
-    else:
-        checkvar = vars_to_get[0]
-    spot_lats = platform_data[checkvar]['data']['lat']
-    spot_lons = platform_data[checkvar]['data']['lon']
-    keep_inds = [(loc_bounds['lat_s'] <= lat <= loc_bounds['lat_n']) and
-                 (loc_bounds['lon_w'] <= lon <= loc_bounds['lon_e']) 
-                for lat, lon in zip(spot_lats, spot_lons)]
-    if any(keep_inds):
-        keep_inds = np.where(keep_inds)[0]
-    else:
-        keep_inds = []
+    for checkvar in platform_data.keys():
+        spot_lats = platform_data[checkvar]['data']['lat']
+        spot_lons = platform_data[checkvar]['data']['lon']
+        keep_inds = [(loc_bounds['lat_s'] <= lat <= loc_bounds['lat_n']) and
+                    (loc_bounds['lon_w'] <= lon <= loc_bounds['lon_e']) 
+                    for lat, lon in zip(spot_lats, spot_lons)]
+        if any(keep_inds):
+            keep_inds = np.where(keep_inds)[0]
+        else:
+            keep_inds = []
+        platform_data[checkvar]['data'] = {key: [val[ii] for ii in keep_inds]
+                                           for key, val in platform_data[checkvar]['data'].items()})
         
     
     ###############################################
