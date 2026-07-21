@@ -471,6 +471,7 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
     
     ####################################
     # Filter the data to the specified location bounds, if provided
+    max_datalen = 0
     for checkvar in platform_data.keys():
         spot_lats = platform_data[checkvar]['data']['lat']
         spot_lons = platform_data[checkvar]['data']['lon']
@@ -483,6 +484,10 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
             keep_inds = []
         platform_data[checkvar]['data'] = {key: [val[ii] for ii in keep_inds]
                                            for key, val in platform_data[checkvar]['data'].items()}
+        max_datalen = max(max_datalen, len(platform_data[checkvar]['data']['lat']))
+    if max_datalen == 0:
+        print('No data within the specified location bounds.')
+        return None, None
         
     
     ###############################################
@@ -646,11 +651,10 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
             
         if smarttest_data is not None:
             smart_data = append_newvar(smart_data, smarttest_data)
-        
-        
-        
-        
 
+    # If there is no data at the end, return None for both dataframes
+    if total_data is None:
+        return None, None
             
     
     # Convert Unix timestamps to datetime objects
@@ -972,8 +976,6 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
     
     def check_valid_spotters(ds, valid_spotters):
         unique_spots = np.unique(ds.loc[:,'platform_id']).tolist()
-        print(unique_spots)
-        print(valid_spotters)
         if any([spot not in valid_spotters for spot in unique_spots]):
             drop_spotters = [unique_spots[ii] for ii in
                              np.where([spot not in valid_spotters 
@@ -2031,7 +2033,6 @@ def update_location_info(loc_id, rebuild_flag=False, rebuild_period=None):
                             if ii.strip()]
         else:
             spotter_list = [infodict['spotter_ids']] if infodict['spotter_ids'] else []
-        print(spotter_list)
 
         # If the rebuild flag is set, we will rebuild the location info json, which will require getting all the location data    
         if rebuild_flag:
@@ -2073,10 +2074,8 @@ def update_location_info(loc_id, rebuild_flag=False, rebuild_period=None):
         # then the API call will have that data, which can be extracted
         loc_info = bb_locs[loc_id]
         if 'data' in loc_info.keys():
-            print(loc_info)
             loc_data = loc_info['data']
             del loc_info['data']
-            print(loc_inf)
 
             # From the most recent data,
             # get the timestamp of the wave height data
@@ -2100,7 +2099,6 @@ def update_location_info(loc_id, rebuild_flag=False, rebuild_period=None):
 
             wavedate = None
             for loc in loc_history:
-                print(loc)
                 if not(loc_history[loc]['status'] == 'active'):
                     print('Historical location info is not active. Pull spotter data directly, and filter for the spatial period.')
                     for spotter in spotter_list:
