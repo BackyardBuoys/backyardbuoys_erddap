@@ -856,13 +856,19 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
         if len(loc_history) > 0:
             # If there is a location history, extract out the lat/lon bounds for each location
             loc_bounds_list = []
-            for loc in loc_history:
+            loc_hist_keys = list(loc_history.keys())
+            for ind, loc in enumerate(loc_history):
                 loc_bounds = {
                     'lat_s': loc_history[loc]['lat_s'],
                     'lat_n': loc_history[loc]['lat_n'],
                     'lon_w': loc_history[loc]['lon_w'],
-                    'lon_e': loc_history[loc]['lon_e']
+                    'lon_e': loc_history[loc]['lon_e'],
+                    'loc_start': (datetime.datetime.strptime(loc_hist_keys[ind], DATETIME_FORMAT) - datetime.timedelta(days=3)).strftime(DATETIME_FORMAT)
                 }
+                if ind == len(loc_history)-1:
+                    loc_bounds['loc_end'] = None
+                else:
+                    loc_bounds['loc_end'] = (datetime.datetime.strptime(loc_hist_keys[ind+1], DATETIME_FORMAT) + datetime.timedelta(days=3)).strftime(DATETIME_FORMAT)
                 loc_bounds_list.append(loc_bounds)
         else:
             loc_bounds_list = None
@@ -957,16 +963,18 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
         for spotter in valid_spotters:
             print('   Pull data for spotter: ' + spotter)
             for ii in range(0,len(loc_bounds_list)):
-                ds_temp, ds_smart_temp = get_data_by_platform(spotter, time_start=pull_starttime,
-                                                            time_end=pull_endtime, loc_bounds=loc_bounds_list[ii])
-            if ds is None and ds_temp is not None:
-                ds = ds_temp
-            elif ds_temp is not None:
-                ds = pd.concat([ds, ds_temp], axis=0).reset_index(drop=True)
-            if ds_smart is None and ds_smart_temp is not None:
-                ds_smart = ds_smart_temp
-            elif ds_smart_temp is not None:
-                ds_smart = pd.concat([ds_smart, ds_smart_temp], axis=0).reset_index(drop=True)
+                loc_bounds = loc_bounds_list[ii]
+                ds_temp, ds_smart_temp = get_data_by_platform(spotter, time_start=loc_bounds['loc_start'],
+                                                              time_end=loc_bounds['loc_end'], loc_bounds=loc_bounds)
+            
+                if ds is None and ds_temp is not None:
+                    ds = ds_temp
+                elif ds_temp is not None:
+                    ds = pd.concat([ds, ds_temp], axis=0).reset_index(drop=True)
+                if ds_smart is None and ds_smart_temp is not None:
+                    ds_smart = ds_smart_temp
+                elif ds_smart_temp is not None:
+                    ds_smart = pd.concat([ds_smart, ds_smart_temp], axis=0).reset_index(drop=True)
 
     if ds is None:
         print('   Return without processing any data')
