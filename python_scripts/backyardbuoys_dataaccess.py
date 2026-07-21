@@ -513,7 +513,6 @@ def bbapi_get_platform_data(platform_id, vars_to_get='ALL', time_start=None, tim
         params['time_start'] = '2022-01-01T00:00:00Z'
     if time_end is not None:
         params['time_end'] = time_end
-    print(params)
 
     # Make GET request to the API
     try:

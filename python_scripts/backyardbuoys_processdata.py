@@ -535,34 +535,34 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
     # Extract variable data from location data and organize by depth
     # Surface measurements (depth=0) go to varnames
     # Subsurface measurements (depth≠0) go to smartvars (smart mooring sensors)
-    loc_data_topds = {}
+    plat_data_topds = {}
     varnames = []        # Surface wave buoy variables
     smartvars = []       # Smart mooring sensor variables
     smartdepths = []     # Depths of smart mooring sensors
     
-    for varname in location_data.keys():
-        loc_data_topds[varname] = {}
-        loc_data_topds[varname]['units'] = location_data[varname]['units']
-        data_colnames = [ii for ii in location_data[varname]['data'].keys()]
-        temp_pd = pd.DataFrame(data = location_data[varname]['data'],
+    for varname in platform_data.keys():
+        plat_data_topds[varname] = {}
+        plat_data_topds[varname]['units'] = platform_data[varname]['units']
+        data_colnames = [ii for ii in platform_data[varname]['data'].keys()]
+        temp_pd = pd.DataFrame(data = platform_data[varname]['data'],
                                columns=data_colnames)
         # Rename 'value' column to the variable name for clarity
         data_colnames = [varname if ii == 'value' else ii for ii in data_colnames]
-        loc_data_topds[varname]['data'] = temp_pd.rename(columns={"value": varname})
+        plat_data_topds[varname]['data'] = temp_pd.rename(columns={"value": varname})
         
         # Categorize variables by depth
-        if any(loc_data_topds[varname]['data']['depth']==0):
+        if any(plat_data_topds[varname]['data']['depth']==0):
             varnames.append(varname)  # Surface measurement
-        if any(loc_data_topds[varname]['data']['depth']!=0):
+        if any(plat_data_topds[varname]['data']['depth']!=0):
             smartvars.append(varname)  # Subsurface measurement
-            smartdepths.append(np.unique(loc_data_topds[varname]['data']['depth'])[0])
+            smartdepths.append(np.unique(plat_data_topds[varname]['data']['depth'])[0])
     
     # Initialize separate dataframes for surface and subsurface data
     # Surface data: Wave buoy measurements (depth = 0)
     # Smart data: Smart mooring sensors (depth ≠ 0)
     if len(varnames) > 0:
         # Start with the first surface variable
-        test_data = loc_data_topds[varnames[0]]['data'].copy()
+        test_data = plat_data_topds[varnames[0]]['data'].copy()
         total_data = test_data[test_data['depth'] == 0].reset_index(drop=True)
 
         # Create a unique "point ID" for each observation
@@ -574,7 +574,7 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
 
     if len(smartvars) > 0:
         # Start with the first smart mooring variable
-        test_data = loc_data_topds[smartvars[0]]['data'].copy()
+        test_data = plat_data_topds[smartvars[0]]['data'].copy()
         smart_data = test_data[test_data['depth'] != 0].reset_index(drop=True)
 
         # Create a unique "point ID" combining timestamp and depth
@@ -589,7 +589,7 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
     # to the total data dataframes
     for varname in varnames[1:]:
         # Extract out the data
-        alltest_data = loc_data_topds[varname]['data'].copy()
+        alltest_data = plat_data_topds[varname]['data'].copy()
         
         # Create a "point ID", created as a combination of
         # data timestamp and depth
@@ -615,7 +615,7 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
     # to the total data dataframes
     for varname in smartvars[1:]:
         # Extract out the data
-        alltest_data = loc_data_topds[varname]['data'].copy()
+        alltest_data = plat_data_topds[varname]['data'].copy()
         
         # Create a "point ID", created as a combination of
         # data timestamp and depth
@@ -660,6 +660,12 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
         # Drop any data with bad "time" values
         smart_data = smart_data.dropna(subset='time').reset_index(drop=True)
         
+
+    # Ensure that platform ID is a variable in the datasets
+    if 'platform_id' not in total_data.columns:
+        total_data['platform_id'] = [platform_id] * len(total_data)
+    if smart_data is not None and 'platform_id' not in smart_data.columns:
+        smart_data['platform_id'] = [platform_id] * len(smart_data)
             
     
     return total_data, smart_data
@@ -902,8 +908,26 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
               ': Pull data since the beginning of the data record.')
         print('   Data record begins at API default start date.')
 
-    ds, ds_smart = get_data_by_location(loc_id, time_start=pull_starttime,
-                                        time_end=pull_endtime)
+    if not(rebuild_flag):
+        ds, ds_smart = get_data_by_location(loc_id, time_start=pull_starttime,
+                                            time_end=pull_endtime)
+    else:
+        ds = None
+        ds_smart = None
+
+        for spotter in valid_spotters:
+            print('   Pull data for spotter: ' + spotter)
+            ds_temp, ds_smart_temp = get_data_by_platform(spotter, time_start=pull_starttime,
+                                                          time_end=pull_endtime)
+            if ds is None and ds_temp is not None:
+                ds = ds_temp
+            elif ds_temp is not None:
+                ds = pd.concat([ds, ds_temp], axis=0).reset_index(drop=True)
+            if ds_smart is None and ds_smart_temp is not None:
+                ds_smart = ds_smart_temp
+            elif ds_smart_temp is not None:
+                ds_smart = pd.concat([ds_smart, ds_smart_temp], axis=0).reset_index(drop=True)
+
     if ds is None:
         print('   Return without processing any data')
         return None, None
@@ -2001,7 +2025,6 @@ def update_location_info(loc_id, rebuild_flag=False, rebuild_period=None):
         
         # Load in the location info
         loccheck = True if not(rebuild_flag) else False
-        print('Check for recent data: ' + str(loccheck))
         bb_locs = bb_da.bbapi_get_locations(recentFlag=loccheck)
         addspotterFlag = False
         if not(any([loc == loc_id for loc in bb_locs.keys()])) and not(rebuild_flag):
@@ -2039,13 +2062,12 @@ def update_location_info(loc_id, rebuild_flag=False, rebuild_period=None):
 
             new_spotter_list = []
 
+            wavedate = None
             for loc in loc_history:
                 print(loc)
                 if not(loc_history[loc]['status'] == 'active'):
                     print('Historical location info is not active. Pull spotter data directly, and filter for the spatial period.')
-                    wavedate = None
                     for spotter in spotter_list:
-                        print(spotter)
                         if rebuild_period is not None:
                                 spot_locdata = bb_da.bbapi_get_platform_data(spotter,
                                                                             vars_to_get='WaveHeightSig',
@@ -2155,8 +2177,9 @@ def update_location_info(loc_id, rebuild_flag=False, rebuild_period=None):
         print('Update recent data for location ID: ' + loc_id)
             
         # Update the date of recent data
-        if (datetime.datetime.strptime(infodict['recent_date'], '%Y-%m-%dT%H:%M:%SZ') <
-            wavedate):
+        if ((wavedate is not None) and 
+            (datetime.datetime.strptime(infodict['recent_date'], '%Y-%m-%dT%H:%M:%SZ') <
+            wavedate)):
             print('Most recent wave data date: ' + wavedate.strftime('%Y-%m-%dT%H:%M:%SZ'))
             infodict['recent_date'] = wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')
             addspotterFlag = True
