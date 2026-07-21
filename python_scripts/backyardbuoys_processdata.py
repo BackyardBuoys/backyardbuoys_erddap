@@ -482,7 +482,7 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
         else:
             keep_inds = []
         platform_data[checkvar]['data'] = {key: [val[ii] for ii in keep_inds]
-                                           for key, val in platform_data[checkvar]['data'].items()})
+                                           for key, val in platform_data[checkvar]['data'].items()}
         
     
     ###############################################
