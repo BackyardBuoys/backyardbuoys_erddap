@@ -458,7 +458,8 @@ def get_data_by_location(location_id, vars_to_get = 'ALL',
 
 
 def get_data_by_platform(platform_id, vars_to_get = 'ALL', 
-                         time_start=None, time_end=None):
+                         time_start=None, time_end=None,
+                         loc_bounds=None):
     
     ####################################
     # Pull data for for a given location
@@ -467,6 +468,22 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
     if (platform_data is None) or (len(platform_data) == 0):
         print('No data pulled.')
         return None, None
+    
+    ####################################
+    # Filter the data to the specified location bounds, if provided
+    if vars_to_get == 'ALL':
+        checkvar = 'WaveHeightSig'
+    else:
+        checkvar = vars_to_get[0]
+    spot_lats = platform_data[checkvar]['data']['lat']
+    spot_lons = platform_data[checkvar]['data']['lon']
+    keep_inds = [(loc_bounds['lat_s'] <= lat <= loc_bounds['lat_n']) and
+                 (loc_bounds['lon_w'] <= lon <= loc_bounds['lon_e']) 
+                for lat, lon in zip(spot_lats, spot_lons)]
+    if any(keep_inds):
+        keep_inds = np.where(keep_inds)[0]
+    else:
+        keep_inds = []
         
     
     ###############################################
@@ -830,6 +847,25 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
                 
         check_spotters = True
 
+    #
+    if rebuild_flag:
+        loc_history = infodict['loc_history']
+        if len(loc_history) > 0:
+            # If there is a location history, extract out the lat/lon bounds for each location
+            loc_bounds_list = []
+            for loc in loc_history:
+                loc_bounds = {
+                    'lat_s': loc_history[loc]['lat_s'],
+                    'lat_n': loc_history[loc]['lat_n'],
+                    'lon_w': loc_history[loc]['lon_w'],
+                    'lon_e': loc_history[loc]['lon_e']
+                }
+                loc_bounds_list.append(loc_bounds)
+        else:
+            loc_bounds_list = None
+    else:
+        loc_bounds_list = None
+
     
     # Load in existing data, if it exists
     if not(rebuild_flag):
@@ -917,8 +953,9 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
 
         for spotter in valid_spotters:
             print('   Pull data for spotter: ' + spotter)
-            ds_temp, ds_smart_temp = get_data_by_platform(spotter, time_start=pull_starttime,
-                                                          time_end=pull_endtime)
+            for ii in range(0,len(loc_bounds_list)):
+                ds_temp, ds_smart_temp = get_data_by_platform(spotter, time_start=pull_starttime,
+                                                            time_end=pull_endtime, loc_bounds=loc_bounds_list[ii])
             if ds is None and ds_temp is not None:
                 ds = ds_temp
             elif ds_temp is not None:
