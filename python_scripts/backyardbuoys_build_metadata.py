@@ -799,7 +799,7 @@ def make_metadata_json(basedir, bb_loc, loc_meta, spotters_dict, rebuildFlag=Fal
 # %%
 
 
-def make_location_info_json(basedir, loc_id, rebuildFlag=False):
+def make_location_info_json(basedir, loc_id, rebuild_flag=False, rebuild_period=None):
     
     """
     Location info
@@ -817,54 +817,70 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
                     platform_ids.append(entry.strip())
 
         return [ii for ii in np.unique(platform_ids)]
-    
-    
+
+
     # Define the info json path
-    # Ensure required directories exist so file writes do not fail
-    location_dir = os.path.join(basedir, loc_id)
-    if not(os.path.exists(location_dir)):
-        os.mkdir(location_dir)
-    sourcedir = os.path.join(location_dir, 'metadata')
-    if not(os.path.exists(sourcedir)):
-        os.mkdir(sourcedir)
+    basedir = bb.get_datadir()
+    sourcedir = os.path.join(basedir, loc_id, 'metadata')
     infodir = os.path.join(sourcedir, loc_id +'_info.json')
 
+
     
-    # If the info path already exists,
+    # If the info path already exists, 
     # load in the info json, and update the relevant fields
-    info_exists = os.path.exists(infodir)
-    load_existing_info = info_exists and not(rebuildFlag)
-    if load_existing_info:
-        try:
-            with open(infodir, 'r') as info_json:
-                infodict = json.load(info_json)
-        except FileNotFoundError:
-            print('Info json was missing for location ID: ' + loc_id)
-            print('Rebuild location info json from API data.')
-            return make_location_info_json(basedir, loc_id, rebuildFlag=True)
+    if os.path.exists(infodir):
+        with open(infodir, 'r') as info_json:
+            infodict = json.load(info_json)
             
         # Extract out a list of all spotter IDs for a location
-        if infodict['spotter_ids'] == '':
-            spotter_list = []
-        elif ',' in infodict['spotter_ids']:
+        # Filter out empty strings that may result from trailing commas or empty fields
+        if ',' in infodict['spotter_ids']:
             spotter_list = [ii.strip() for ii in 
-                            np.unique(infodict['spotter_ids'].split(','))]
+                            np.unique(infodict['spotter_ids'].split(',')) 
+                            if ii.strip()]
         else:
-            spotter_list = [infodict['spotter_ids']]
-           
+            spotter_list = [infodict['spotter_ids']] if infodict['spotter_ids'] else []
+
+        # If the rebuild flag is set, we will rebuild the location info json, which will require getting all the location data    
+        if rebuild_flag:
+            loc_history = infodict['loc_history']
+            if len(loc_history) > 0:
+                loc_dates = [datetime.datetime.strptime(ii, '%Y-%m-%dT%H:%M:%SZ') for ii in loc_history.keys()]
+                max_date = max(loc_dates).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+            if rebuild_period is not None:
+                if len(loc_history) > 1:
+                    if len(rebuild_period) > 1:
+                        overlap_inds = [(rebuild_period[0] <= ii <= rebuild_period[1]) for ii in loc_dates]
+                    else:
+                        overlap_inds = [(rebuild_period[0] <= ii) for ii in loc_dates]
+                    loc_history = {ii:loc_history[ii] for jj, ii in enumerate(loc_history) if overlap_inds[jj]}
+                    loc_dates = [datetime.datetime.strptime(ii, '%Y-%m-%dT%H:%M:%SZ') for ii in loc_history.keys()]
+
+                    
+
+            loc_nbound = [loc_history[ii]['lat_n'] for ii in loc_history]
+            loc_sbound = [loc_history[ii]['lat_s'] for ii in loc_history]
+            loc_ebound = [loc_history[ii]['lon_e'] for ii in loc_history]
+            loc_wbound = [loc_history[ii]['lon_w'] for ii in loc_history]
+            loc_status = [loc_history[ii]['status'] for ii in loc_history]
+        else:
+            loc_history = []
         
         # Load in the location info
-        bb_locs = bb_da.bbapi_get_locations(recentFlag=True)
+        loccheck = True if not(rebuild_flag) else False
+        bb_locs = bb_da.bbapi_get_locations(recentFlag=loccheck)
         addspotterFlag = False
-        if not(any([loc == loc_id for loc in bb_locs.keys()])) and not(rebuildFlag):
+        if not(any([loc == loc_id for loc in bb_locs.keys()])) and not(rebuild_flag):
             print('No recent data for location ID: ' + loc_id)
             print('Do not update location info.')
             return False
         
-        try:
-            # If there is recent data (i.e., less than 30 days old)
-            # then the API call will have that data, which can be extracted
-            loc_info = bb_locs[loc_id]
+
+        # If there is recent data (i.e., less than 30 days old)
+        # then the API call will have that data, which can be extracted
+        loc_info = bb_locs[loc_id]
+        if 'data' in loc_info.keys():
             loc_data = loc_info['data']
             del loc_info['data']
 
@@ -883,22 +899,68 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
                         for spotter in spotter_list])):
                 addspotterFlag = True
                 new_spotter_list.append(new_spotter)
+
+        elif rebuild_flag:
+
+            new_spotter_list = []
+
+            wavedate = None
+            for loc in loc_history:
+                if not(loc_history[loc]['status'] == 'active'):
+                    print('Historical location info is not active. Pull spotter data directly, and filter for the spatial period.')
+                    for spotter in spotter_list:
+                        if rebuild_period is not None:
+                                spot_locdata = bb_da.bbapi_get_platform_data(spotter,
+                                                                            vars_to_get='WaveHeightSig',
+                                                                            time_start=rebuild_period[0].strftime('%Y-%m-%dT%H:%M:%SZ'),
+                                                                            time_end=rebuild_period[1].strftime('%Y-%m-%dT%H:%M:%SZ'))
+                        else:
+                            spot_locdata = bb_da.bbapi_get_platform_data(spotter,
+                                                                        vars_to_get='WaveHeightSig')
+                        if spot_locdata is None:
+                            print(f'No data was found for spotter {spotter}!')
+                            print('Do not add new spotter to location info json.')
+                            continue
+                            
+                        spot_lats = spot_locdata['WaveHeightSig']['data']['lat']
+                        spot_lons = spot_locdata['WaveHeightSig']['data']['lon']
+                        keep_inds = [(loc_history[loc]['lat_s'] <= lat <= loc_history[loc]['lat_n']) and
+                                    (loc_history[loc]['lon_w'] <= lon <= loc_history[loc]['lon_e']) 
+                                    for lat, lon in zip(spot_lats, spot_lons)]
+                        if any(keep_inds):
+                            keep_inds = np.where(keep_inds)[0]
+                        else:
+                            keep_inds = []
+
+                        if any(keep_inds):
+                            addspotterFlag = True
+                            new_spotter_list.append(spotter)
+
+                            # Get the timestamp of the wave height data
+                            max_timestamp = max([spot_locdata['WaveHeightSig']['data']['timestamp'][i] for i in keep_inds])
+                            ref_date = datetime.datetime(1970,1,1)
+                            if wavedate is None:
+                                wavedate = (ref_date + 
+                                            datetime.timedelta(seconds=max_timestamp))
+                            else:
+                                wavedate = max((ref_date + 
+                                                datetime.timedelta(seconds=max_timestamp)),
+                                                wavedate)
+
+
             
-        except:
+        else:
             
             # If there is not recent data for that project,
             # accessing that data from the API will not return
-            # anything.
-            #
+            # anything, and we do not want to rebuild the location info json if there is no recent data
             #
             if (datetime.datetime.strptime(infodict['recent_date'], '%Y-%m-%dT%H:%M:%SZ') <
-                datetime.datetime.now() - datetime.timedelta(days=30)):
+                datetime.datetime.now() - datetime.timedelta(days=30)) and not(rebuild_flag):
                 
                 print('No recent data: do not update location info json.')
                 return False
             else:
-                bb_locs = bb_da.bbapi_get_locations()
-                loc_info = bb_locs[loc_id]
 
                 all_locdata = bb_da.bbapi_get_location_data(loc_id, 
                                               vars_to_get='WaveHeightSig',
@@ -928,39 +990,42 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
                         new_spotter_list.append(new_spotter)
                         
         
-        # Get spotter platform data        
-        bb_plats = bb_da.bbapi_get_platforms()
-        bb_plats_ret = bb_da.bbapi_get_platforms(retiredFlag=True)
-        for plat in bb_plats_ret.keys():
-            bb_plats[plat] = bb_plats_ret[plat]
-        spotter_liststr = ''
-        spotter_addlist = [ii for ii in spotter_list]
+        # Update the site info json with the new spotter ID, if it is not already in the list        
+        if addspotterFlag:
+            unique_ids = np.unique([ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()])
+            infodict['spotter_ids'] = ', '.join(unique_ids)     
+
+        bb_spots = bb_da.bbapi_get_platforms(allplatsFlag=True)
+        spotter_list = [ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()]
         spotter_data = {}
-        for spotter in new_spotter_list:
-            if spotter_liststr == '':
-                extra_str = ''
-            else:
-                extra_str = ', '
-            if (spotter not in bb_plats.keys()) or (any([spotter == ii for ii in spotter_addlist])):
+        for spotter in spotter_list:
+            # Skip empty spotter IDs
+            if not spotter or not spotter.strip():
+                print(f'   Skipping empty spotter ID')
                 continue
-            else:
-                spotter_addlist.append(spotter)
-                spotter_liststr += extra_str + spotter
-                spotter_data[spotter] = bb_plats[spotter]
-        infodict['spotter_ids'] = spotter_liststr
+            
+            if spotter not in bb_spots:
+                print(f'   Warning: Spotter {spotter} not found in platform data')
+                continue
+                
+            spotter_data[spotter] = bb_spots[spotter]
         infodict['spotter_data'] = spotter_data
                 
         activeFlag = False
         if loc_info['status'] == 'active':
             activeFlag = True
         
+        print('Update recent data for location ID: ' + loc_id)
             
         # Update the date of recent data
-        infodict['recent_date'] = wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')
+        if ((wavedate is not None) and 
+            (datetime.datetime.strptime(infodict['recent_date'], '%Y-%m-%dT%H:%M:%SZ') <
+            wavedate)):
+            print('Most recent wave data date: ' + wavedate.strftime('%Y-%m-%dT%H:%M:%SZ'))
+            infodict['recent_date'] = wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')
+            addspotterFlag = True
         infodict['active'] = activeFlag
-        
-        if addspotterFlag:
-            infodict['spotter_ids'] = (infodict['spotter_ids'] + ', ' + new_spotter)
+
             
         # Check the location histories, and check if they have changed
         history_dates = [datetime.datetime.strptime(ii, '%Y-%m-%dT%H:%M:%SZ')
@@ -976,8 +1041,11 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
             print('Add new location history information: ' + wavedate.strftime('%Y-%m-%dT%H:%M:%SZ'))
             infodict['loc_history'][wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')] = loc_info
         
-    if not(load_existing_info):
-        
+    else:
+        ###############################################################
+        ## If the info path does not exist, then create a new info json  
+        print('No location info json exists for project: ' + loc_id + '. Create a new info json.')
+
         bb_locs = bb_da.bbapi_get_locations()
         if not(any([loc == loc_id for loc in bb_locs.keys()])):
             print('No recent data for location ID: ' + loc_id)
@@ -1013,21 +1081,17 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
             print('No valid platform_id entries found for this location!')
             print('Do not make any updates to the location info json.')
             return False
-        bb_plats = bb_da.bbapi_get_platforms(allplatsFlag=True)
+        bb_spots = bb_da.bbapi_get_platforms(allplatsFlag=True)
+
         spotter_liststr = ''
-        spotter_addlist = []
         spotter_data = {}
         for spotter in spotter_list:
             if spotter_liststr == '':
                 extra_str = ''
             else:
                 extra_str = ', '
-            if (spotter not in bb_plats.keys()) or (any([spotter == ii for ii in spotter_addlist])):
-                continue
-            else:
-                spotter_addlist.append(spotter)
-                spotter_liststr += extra_str + spotter
-                spotter_data[spotter] = bb_plats[spotter]
+            spotter_liststr += extra_str + spotter
+            spotter_data[spotter] = bb_spots[spotter]
                 
         infodict =  {
             'location_id': loc_id,
@@ -1048,27 +1112,22 @@ def make_location_info_json(basedir, loc_id, rebuildFlag=False):
     if os.path.exists(infodir):
         if not(os.path.exists(os.path.join(sourcedir, 'archive'))):
             os.mkdir(os.path.join(sourcedir, 'archive'))
-        
-        try:
-            with open(infodir,'r') as info_json:
-                check_json = json.load(info_json)
-        except FileNotFoundError:
-            check_json = None
             
-        if ((check_json is None)
+        with open(infodir,'r') as info_json:
+            check_json = json.load(info_json)
+            
+        if ((infodict['loc_history'] != check_json['loc_history']) 
             or
-            ((infodict['loc_history'] != check_json['loc_history']) 
-             or
-             (('spotter_data' in check_json.keys())
-              and
-              (infodict['spotter_data'] != check_json['spotter_data']))
-             or
-             ('spotter_data' not in check_json.keys())
-            )):
+            (('spotter_data' in check_json.keys())
+             and
+             (infodict['spotter_data'] != check_json['spotter_data']))
+            or
+            ('spotter_data' not in check_json.keys())
+           ):
+            print('Location info json has changed. Archive the old file, and write a new one.')
             archive_name = (loc_id + '_info_' + 
                             datetime.datetime.now().strftime('%Y%m%d') + '.json')
-            if check_json is not None and os.path.exists(infodir):
-                shutil.move(infodir, os.path.join(sourcedir, 'archive', archive_name))
+            shutil.move(infodir, os.path.join(sourcedir, 'archive', archive_name))
         else:
             make_json = False
             
@@ -1408,8 +1467,8 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
             make_qcdata_json(basedir, loc_id, qc_df, rebuild_flag)
             if smartFlag:
                 print('   Add smart mooring QARTOD json.')
-                make_smart_qartod_json(basedir, loc_id, rebuildFlag=rebuild_flag)
-            make_location_info_json(basedir, loc_id, rebuild_flag)
+                make_smart_qartod_json(basedir, loc_id, rebuild_flag=rebuild_flag)
+            make_location_info_json(basedir, loc_id, rebuild_flag=rebuild_flag, rebuild_period=None)
         
             # Append on the new metadata
             new_metadata_locs.append(loc_id)
