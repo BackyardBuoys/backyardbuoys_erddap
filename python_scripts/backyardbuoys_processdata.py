@@ -840,6 +840,11 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
         spotter_list = [ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()]    
         print('   Spotter list: ' + str(spotter_list))
         for spotter in spotter_list:
+            if spotter not in infodict['spotter_data'].keys():
+                print('   Spotter ' + spotter + ' is not in the metadata info json.')
+                print('   This spotter will be skipped.')
+                continue
+            
             if ((infodict['spotter_data'][spotter]['can_data_archive'] == 'yes')
                 and
                 (infodict['spotter_data'][spotter]['can_share_ndbc_nws'] == 'yes')):
