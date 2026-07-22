@@ -185,8 +185,8 @@ def load_existing_netcdf(loc_id, rebuild_period=None):
             
             if (rebuild_period is not None) and (len(rebuild_period) == 2):
                 # If a rebuild period is specified, filter the data files
-                start_date = datetime.datetime.strptime(rebuild_period[0], DATETIME_FORMAT)
-                end_date = datetime.datetime.strptime(rebuild_period[1], DATETIME_FORMAT)
+                start_date = rebuild_period[0]
+                end_date = rebuild_period[1]
                 valid_rebuild_files = [start_date <= date <= end_date for date in datadates]
                 if any(valid_rebuild_files):
                     datafiles = [datafiles[ii] for ii in np.where(valid_rebuild_files)[0]]
@@ -628,6 +628,10 @@ def get_data_by_platform(platform_id, vars_to_get = 'ALL',
             smarttest_data = None
             
         total_data = append_newvar(total_data, test_data)
+        if len(total_data) == 0:
+            total_data = None
+            return None, None
+        
         if smarttest_data is not None:
             smart_data = append_newvar(smart_data, smarttest_data)
             
@@ -863,12 +867,16 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
                     'lat_n': loc_history[loc]['lat_n'],
                     'lon_w': loc_history[loc]['lon_w'],
                     'lon_e': loc_history[loc]['lon_e'],
-                    'loc_start': (datetime.datetime.strptime(loc_hist_keys[ind], DATETIME_FORMAT) - datetime.timedelta(days=3)).strftime(DATETIME_FORMAT)
+                    'loc_start': max([rebuild_period[0],
+                                      (datetime.datetime.strptime(loc_hist_keys[ind], DATETIME_FORMAT) 
+                                       - datetime.timedelta(days=3))]).strftime(DATETIME_FORMAT)
                 }
                 if ind == len(loc_history)-1:
                     loc_bounds['loc_end'] = None
                 else:
-                    loc_bounds['loc_end'] = (datetime.datetime.strptime(loc_hist_keys[ind+1], DATETIME_FORMAT) + datetime.timedelta(days=3)).strftime(DATETIME_FORMAT)
+                    loc_bounds['loc_end'] = min([rebuild_period[0],
+                                                 (datetime.datetime.strptime(loc_hist_keys[ind+1], DATETIME_FORMAT) 
+                                                  + datetime.timedelta(days=3))]).strftime(DATETIME_FORMAT)
                 loc_bounds_list.append(loc_bounds)
         else:
             loc_bounds_list = None
@@ -1064,12 +1072,14 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
         print('      Old dataset range: ' +  
               pd.Timestamp(ds_old['time'].data[0]).to_pydatetime().strftime('%Y-%m-%dT%H:%M:%SZ') + 
              ' - ' + pd.Timestamp(ds_old['time'].data[-1]).to_pydatetime().strftime('%Y-%m-%dT%H:%M:%SZ'))
+        print('      Old dataset size: ' + str(int(ds_old.sizes['time'])))
+    if ds_xr is not None:
         print('      New dataset range: ' +  
               pd.Timestamp(ds_xr['time'].data[0]).to_pydatetime().strftime('%Y-%m-%dT%H:%M:%SZ') + 
              ' - ' + pd.Timestamp(ds_xr['time'].data[-1]).to_pydatetime().strftime('%Y-%m-%dT%H:%M:%SZ'))
-        print('      Old dataset size: ' + str(int(ds_old.sizes['time'])))
         print('      New dataset size: ' + str(int(ds_xr.sizes['time'])))
         
+    if (ds_old is not None) and (ds_xr is not None):
         ds_all = xr.concat([ds_old, ds_xr.sortby('time')], dim='time').sortby('time')
         print('      Merged dataset range: ' +  
               pd.Timestamp(ds_all['time'].data[0]).to_pydatetime().strftime('%Y-%m-%dT%H:%M:%SZ') + 

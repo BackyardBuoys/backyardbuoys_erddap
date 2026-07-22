@@ -170,7 +170,6 @@ def main():
             # Set rebuild period flag and store rebuild period option
             rebuildPeriodFlag = True
             rebuildPeriod = a
-            print('Rebuild period: ', rebuildPeriod)
             
         elif o in ("-q", "--qctests"):
             # Set QC test flag and store qctest option
@@ -284,9 +283,10 @@ def main():
             print('Flag will be ignored.')
             rebuildPeriodFlag = False
 
-        print('Rebuild period format is: "YYYY-MM-DD" or "YYYY-MM-DD:YYYY-MM-DD"')
+        
         if not isinstance(rebuildPeriod, str):
             print('Invalid rebuild period format. It must be a string.')
+            print('Rebuild period format is: "YYYY-MM-DD" or "YYYY-MM-DD:YYYY-MM-DD"')
             print('Flag will be ignored.')
             rebuildPeriodFlag = False
             rebuild_period = None
@@ -316,6 +316,8 @@ def main():
             elif len(rebuild_period) == 1:
                 # If only one date is provided, append on tomorrow's date to make it an open-ended rebuild period
                 rebuild_period.append(datetime.datetime.now()+datetime.timedelta(days=1))  # Set end date to tomorrow for open-ended rebuild
+
+            print(f'Rebuild period set to: {rebuild_period[0].strftime("%Y-%m-%d")} to {rebuild_period[1].strftime("%Y-%m-%d")}')
         if not(rebuildPeriodFlag):
             rebuild_period = None
     else:
