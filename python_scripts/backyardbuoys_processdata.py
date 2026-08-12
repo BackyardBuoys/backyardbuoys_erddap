@@ -834,13 +834,43 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
     check_spotters = False
     if (infodict is not None) and ('spotter_data' in infodict.keys()):        
         spotter_list = []
+        new_spotter_list = []
         valid_spotters = []
         ndbc_share_spotters = []
         # Filter out empty strings from spotter list
         spotter_list = [ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()]    
-        print('   Spotter list: ' + str(spotter_list))
+        print('   Existing spotter list: ' + str(spotter_list))
+
+        if not(rebuild_flag):
+            # Pull recent location data, and check for any new spotters
+            recent_data = bb_da.bbapi_get_location_data(loc_id, vars_to_get='WaveHeightSig')
+            recent_plats = np.unique(recent_data['WaveHeightSig']['data']['platform_id']).tolist()
+            for plat in recent_plats:
+                if plat not in spotter_list:
+                    print('   New spotter found: ' + plat)
+                    
+                    spotter_list.append(plat)
+
+                    bb_spots = bb_da.bbapi_get_platforms(allplatsFlag=True)
+                    new_spotter_data = {}
+                    for spotter in spotter_list:
+                        # Skip empty spotter IDs
+                        if not spotter or not spotter.strip():
+                            print(f'   Skipping empty spotter ID')
+                            continue
+                        
+                        if spotter not in bb_spots:
+                            print(f'   Warning: Spotter {spotter} not found in platform data')
+                            continue
+                            
+                        new_spotter_data[spotter] = bb_spots[spotter]
+                    infodict['spotter_data'].update(new_spotter_data)
+
+                    check_spotters = True
+
         for spotter in spotter_list:
-            if spotter not in infodict['spotter_data'].keys():
+            if ((spotter not in infodict['spotter_data'].keys()) and
+                (spotter not in new_spotter_list)):
                 print('   Spotter ' + spotter + ' is not in the metadata info json.')
                 print('   This spotter will be skipped.')
                 continue
@@ -866,20 +896,22 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
             # If there is a location history, extract out the lat/lon bounds for each location
             loc_bounds_list = []
             loc_hist_keys = list(loc_history.keys())
+            rebuild_start = rebuild_period[0] if rebuild_period is not None else datetime.datetime(2020,1,1)
+            
             for ind, loc in enumerate(loc_history):
                 loc_bounds = {
                     'lat_s': loc_history[loc]['lat_s'],
                     'lat_n': loc_history[loc]['lat_n'],
                     'lon_w': loc_history[loc]['lon_w'],
                     'lon_e': loc_history[loc]['lon_e'],
-                    'loc_start': max([rebuild_period[0],
+                    'loc_start': max([rebuild_start,
                                       (datetime.datetime.strptime(loc_hist_keys[ind], DATETIME_FORMAT) 
                                        - datetime.timedelta(days=3))]).strftime(DATETIME_FORMAT)
                 }
                 if ind == len(loc_history)-1:
                     loc_bounds['loc_end'] = None
                 else:
-                    loc_bounds['loc_end'] = min([rebuild_period[0],
+                    loc_bounds['loc_end'] = max([rebuild_start,
                                                  (datetime.datetime.strptime(loc_hist_keys[ind+1], DATETIME_FORMAT) 
                                                   + datetime.timedelta(days=3))]).strftime(DATETIME_FORMAT)
                 loc_bounds_list.append(loc_bounds)
