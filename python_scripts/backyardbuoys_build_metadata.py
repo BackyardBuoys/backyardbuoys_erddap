@@ -995,7 +995,7 @@ def make_location_info_json(basedir, loc_id, rebuild_flag=False, rebuild_period=
             unique_ids = np.unique([ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()])
             unique_new_spotter_list = np.unique([ii.strip() for ii in new_spotter_list if ii.strip()])
             all_unique_ids = np.unique(np.concatenate((unique_ids, unique_new_spotter_list)))
-            infodict['spotter_ids'] = ', '.join(unique_new_spotter_list)
+            infodict['spotter_ids'] = ', '.join(all_unique_ids)
 
         bb_spots = bb_da.bbapi_get_platforms(allplatsFlag=True)
         spotter_list = [ii.strip() for ii in infodict['spotter_ids'].split(',') if ii.strip()]

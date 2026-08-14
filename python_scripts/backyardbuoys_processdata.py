@@ -847,10 +847,9 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
             recent_plats = np.unique(recent_data['WaveHeightSig']['data']['platform_id']).tolist()
             for plat in recent_plats:
                 if plat not in spotter_list:
-                    print('   New spotter found: ' + plat)
-                    
-                    spotter_list.append(plat)
+                    print('   New spotter found: ' + plat)                    
 
+                    spotter_list.append(plat)
                     bb_spots = bb_da.bbapi_get_platforms(allplatsFlag=True)
                     new_spotter_data = {}
                     for spotter in spotter_list:
@@ -864,6 +863,8 @@ def process_newdata(loc_id, rebuild_flag=False, rerun_tests=False, rebuild_perio
                             continue
                             
                         new_spotter_data[spotter] = bb_spots[spotter]
+                    if 'spotter_data' not in infodict:
+                        infodict['spotter_data'] = {}
                     infodict['spotter_data'].update(new_spotter_data)
 
                     check_spotters = True
