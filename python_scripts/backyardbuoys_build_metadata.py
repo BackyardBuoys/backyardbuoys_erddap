@@ -872,9 +872,14 @@ def make_location_info_json(basedir, loc_id, rebuild_flag=False, rebuild_period=
         bb_locs = bb_da.bbapi_get_locations(recentFlag=loccheck)
         addspotterFlag = False
         if not(any([loc == loc_id for loc in bb_locs.keys()])) and not(rebuild_flag):
-            print('No recent data for location ID: ' + loc_id)
-            print('Do not update location info.')
-            return False
+            print('Location ID not found in newest_data API response. Check full location list.')
+            bb_locs_all = bb_da.bbapi_get_locations(recentFlag=False)
+            if any([loc == loc_id for loc in bb_locs_all.keys()]):
+                bb_locs = bb_locs_all
+            else:
+                print('No recent data for location ID: ' + loc_id)
+                print('Do not update location info.')
+                return None
         
 
         # If there is recent data (i.e., less than 30 days old)
@@ -950,44 +955,42 @@ def make_location_info_json(basedir, loc_id, rebuild_flag=False, rebuild_period=
 
             
         else:
-            
-            # If there is not recent data for that project,
-            # accessing that data from the API will not return
-            # anything, and we do not want to rebuild the location info json if there is no recent data
-            #
-            if (datetime.datetime.strptime(infodict['recent_date'], '%Y-%m-%dT%H:%M:%SZ') <
-                datetime.datetime.now() - datetime.timedelta(days=30)) and not(rebuild_flag):
-                
-                print('No recent data: do not update location info json.')
-                return False
-            else:
 
-                all_locdata = bb_da.bbapi_get_location_data(loc_id, 
-                                              vars_to_get='WaveHeightSig',
-                                              time_start=datetime.datetime(2022,6,1).strftime('%Y-%m-%dT%H:%M:%SZ'))
-                if all_locdata is None:
-                    print('No data was found at this location!')
-                    print('Do not make any updates to the location info json.')
-                    return False
-                
-                # Get the timestamp of the wave height data
-                max_timestamp = max(all_locdata['WaveHeightSig']['data']['timestamp'])
-                ref_date = datetime.datetime(1970,1,1)
-                wavedate = (ref_date + 
-                            datetime.timedelta(seconds=max_timestamp))
-            
-                # Get the spotter ID from the most recent data
-                platform_ids = _extract_platform_ids(all_locdata['WaveHeightSig']['data']['platform_id'])
-                new_spotter_list = spotter_list
-                if len(platform_ids) == 0:
-                    print('No valid platform_id entries found for this location.')
-                    print('Do not add new spotter to location info json.')
-                else:
-                    new_spotter = platform_ids[0]
-                    if not(any([new_spotter == spotter 
-                                for spotter in spotter_list])):
-                        addspotterFlag = True
-                        new_spotter_list.append(new_spotter)
+            # The newest_data endpoint can intermittently omit "data" even when
+            # the location has valid recent observations. Query recent wave-height
+            # data directly before concluding there is no recent data.
+            recent_window_start = (datetime.datetime.utcnow() -
+                                   datetime.timedelta(days=45)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            all_locdata = bb_da.bbapi_get_location_data(loc_id,
+                                          vars_to_get='WaveHeightSig',
+                                          time_start=recent_window_start)
+            if ((all_locdata is None) or
+                ('WaveHeightSig' not in all_locdata.keys()) or
+                ('data' not in all_locdata['WaveHeightSig'].keys()) or
+                ('timestamp' not in all_locdata['WaveHeightSig']['data'].keys()) or
+                (len(all_locdata['WaveHeightSig']['data']['timestamp']) == 0)):
+                print('No recent WaveHeightSig data found for this location.')
+                print('Do not make any updates to the location info json.')
+                return None
+
+            # Get the timestamp of the wave height data
+            max_timestamp = max(all_locdata['WaveHeightSig']['data']['timestamp'])
+            ref_date = datetime.datetime(1970,1,1)
+            wavedate = (ref_date +
+                        datetime.timedelta(seconds=max_timestamp))
+
+            # Get the spotter ID from the most recent data
+            platform_ids = _extract_platform_ids(all_locdata['WaveHeightSig']['data']['platform_id'])
+            new_spotter_list = spotter_list
+            if len(platform_ids) == 0:
+                print('No valid platform_id entries found for this location.')
+                print('Do not add new spotter to location info json.')
+            else:
+                new_spotter = platform_ids[0]
+                if not(any([new_spotter == spotter
+                            for spotter in spotter_list])):
+                    addspotterFlag = True
+                    new_spotter_list.append(new_spotter)
                         
         
         # Update the site info json with the new spotter ID, if it is not already in the list        
@@ -1052,7 +1055,7 @@ def make_location_info_json(basedir, loc_id, rebuild_flag=False, rebuild_period=
         if not(any([loc == loc_id for loc in bb_locs.keys()])):
             print('No recent data for location ID: ' + loc_id)
             print('Do not update location info.')
-            return False
+            return None
         else:
             loc_info = bb_locs[loc_id]
         
@@ -1062,7 +1065,7 @@ def make_location_info_json(basedir, loc_id, rebuild_flag=False, rebuild_period=
         if all_locdata is None:
             print('No data was found at this location!')
             print('Do not make any updates to the location info json.')
-            return False
+            return None
                 
         ref_date = datetime.datetime(1970,1,1)
         startdate = (ref_date + 
@@ -1082,7 +1085,7 @@ def make_location_info_json(basedir, loc_id, rebuild_flag=False, rebuild_period=
         if len(spotter_list) == 0:
             print('No valid platform_id entries found for this location!')
             print('Do not make any updates to the location info json.')
-            return False
+            return None
         bb_spots = bb_da.bbapi_get_platforms(allplatsFlag=True)
 
         spotter_liststr = ''
@@ -1484,4 +1487,3 @@ def make_projects_metadata(loc_ids=None, rebuild_flag=False):
         new_metadata_locs = None
 
     return new_metadata_locs
-

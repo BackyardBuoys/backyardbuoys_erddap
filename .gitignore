@@ -12,3 +12,5 @@ python_scripts/info_jsons/user_info.json
 python_scripts/info_jsons/user_info.json
 erddap_files/datasets.xml
 erddap_files/datasets.xml
+python_scripts/info_jsons/user_info.json
+erddap_files/datasets.xml

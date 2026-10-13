@@ -1951,10 +1951,10 @@ def update_data_by_location(loc_id, rebuild_flag=False, rerun_tests=False, rebui
     # Create and/or update the location info json
     updatespotterFlag = bb_meta.make_location_info_json(basedir, loc_id, rebuild_flag=rebuild_flag, rebuild_period=rebuild_period)
     
-    # If make_location_info_json returns False, the location has no recent data
-    # and cannot be processed
-    if (updatespotterFlag is False) and not(rebuild_flag):
-        print(f'{loc_id}: No recent data available. Cannot process location.')
+    # If make_location_info_json returns None, location info could not be
+    # updated (e.g., no recent data or API request issue).
+    if (updatespotterFlag is None) and not(rebuild_flag):
+        print(f'{loc_id}: Unable to update location info from recent data. Cannot process location.')
         return False
     
     # Load in the meta data for all locations
@@ -2160,4 +2160,3 @@ def update_netcdf_metadata_by_location(loc_id):
         print('\n\n')
         
     return
-
