@@ -540,18 +540,18 @@ def get_ioos_association_url(ioos_assoc):
         'NANOOS': 'https://www.nanoos.org/',
         'CENCOOS': 'https://cencoos.org/',
         'SCCOOS': 'https://sccoos.org/',
-        'PacIOOS': 'https://www.pacioos.hawaii.edu/',
+        'PACIOOS': 'https://www.pacioos.hawaii.edu/',
         'GLOS': 'https://glos.org/',
         'GCOOS': 'https://gcoos.org/',
         'NERACOOS': 'https://neracoos.org/',
         'MARACOOS': 'https://maracoos.org/',
         'SECOORA': 'https://secoora.org/',
-        'CariCOOS': 'https://www.caricoos.org/' 
+        'CARICOOS': 'https://www.caricoos.org/' 
     }
     
     ioos_ra_keys = ioos_ra_urls.keys()
-    if any([ii == ioos_assoc for ii in ioos_ra_keys]):
-        return ioos_ra_urls[ioos_assoc]
+    if any([ii == ioos_assoc.upper() for ii in ioos_ra_keys]):
+        return ioos_ra_urls[ioos_assoc.upper()]
     else:
         return 'none'
 
