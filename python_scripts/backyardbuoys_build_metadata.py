@@ -732,68 +732,6 @@ def make_metadata_json(basedir, bb_loc, loc_meta, spotters_dict, rebuildFlag=Fal
         
     return
 
-
-# def make_project_metadata(loc_id, addSpotterFlag=False):
-#     
-#     ##################################################
-#     # Load in the metadata from the Google sheets,
-#     # and all the buoys in the Backyard Buoys data API
-#     basedir = bb.get_datadir()
-#     bb_locs = bb_da.bbapi_get_locations() 
-#     bb_plats = bb_da.bbapi_get_platforms()
-#     bb_plats_ret = bb_da.bbapi_get_platforms(retiredFlag=True)
-#     for plat in bb_plats_ret.keys():
-#         bb_plats[plat] = bb_plats_ret[plat]
-# 
-#     qc_df = get_all_google_qcdata()
-#     
-# 
-#     # Check if the location ID is present in valid locations
-#     if not(any([loc == loc_id for loc in bb_locs.keys()])):
-#         print('No data found which matches the location ID: ' + loc_id)
-#         print('Unable to proceed.')
-#         return False
-#     else:
-#         loc_meta = bb_locs[loc_id]
-#         
-#     # Double-check that the location ID
-#     # is a Backyard Buoys site
-#     if not(loc_meta['is_byb'] == 'yes'):
-#         print('Location is not a Backyard Buoys site.')
-#         print('Do not create metadata for location ID: ' + loc_id)
-#         return False
-#     
-# 
-#     # Use the location ID to pull a subset of all of the data, and to 
-#     # find the unique spotter IDs associated with that location ID
-#     locdata = bb_da.bbapi_get_location_data(loc_id, 
-#                                             vars_to_get='WaveHeightSig',
-#                                             time_start=datetime.datetime(2022,6,1).strftime('%Y-%m-%dT%H:%M:%SZ'))
-#     if locdata is None:
-#         print('No spotter buoy data is found for this location ID.')
-#         print('Do not create metadata for location ID: ' + loc_id)
-#         return False
-#     spotter_ids = np.unique(locdata['WaveHeightSig']['data']['platform_id'])
-#     spotters_dict = {}
-#     for spotter_id in spotter_ids:
-#         if spotter_id not in bb_plats.keys():
-#             print('No spotter metadata has been added for spotter ' + spotter_id)
-#             print('Unable to add data. Continue on.')
-#             continue
-#         spotters_dict[spotter_id] = bb_plats[spotter_id]
-#     if len(spotters_dict) == 0:
-#         print('No spotter metadata has been added.')
-#         print('Do not create metadata for location ID: ' + loc_id)
-#         return False
-# 
-#     # Make the metadata and QC jsons for the specified project
-#     make_metadata_json(basedir, loc_id, 
-#                        loc_meta, spotters_dict)
-#     make_qcdata_json(basedir, loc_id, qc_df)
-#     make_location_info_json(basedir, loc_id)
-#     
-#     return True
-
 # # Location Info
 
 # %%
@@ -1045,6 +983,14 @@ def make_location_info_json(basedir, loc_id, rebuild_flag=False, rebuild_period=
         if latest_history != loc_info:
             print('Add new location history information: ' + wavedate.strftime('%Y-%m-%dT%H:%M:%SZ'))
             infodict['loc_history'][wavedate.strftime('%Y-%m-%dT%H:%M:%SZ')] = loc_info
+            # Check that the IOOS RA is still appropriate for the location
+            if 'ioos_ra' in loc_info:
+                if ((loc_info['ioos_ra'] != latest_history.get('ioos_ra', None)) or 
+                    (loc_info['ioos_ra'] is None and latest_history.get('ioos_ra', None) is not None)):
+                    print('Warning: IOOS RA has changed for location ID: ' + loc_id)
+                    print('Previous IOOS RA: ' + str(latest_history.get('ioos_ra', None)))
+                    print('Current IOOS RA: ' + str(loc_info['ioos_ra']))
+                    infodict['ioos_ra'] = loc_info['ioos_ra']
         
     else:
         ###############################################################
