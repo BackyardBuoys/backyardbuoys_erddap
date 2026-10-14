@@ -30,6 +30,7 @@ backyardbuoys_erddap/
 │   ├── backyardbuoys_main.py              # Main entry point and CLI
 │   ├── backyardbuoys_dataaccess.py        # API data access functions
 │   ├── backyardbuoys_processdata.py       # Data processing and NetCDF generation
+│   ├── backyardbuoys_process_nondb_csv.py # CSV-to-NetCDF processing for non-db_data
 │   ├── backyardbuoys_qualitycontrol.py    # QARTOD QC implementation
 │   ├── backyardbuoys_build_metadata.py    # Metadata compilation from Google Sheets
 │   ├── backyardbuoys_generate_xml.py      # ERDDAP XML generation
@@ -139,6 +140,15 @@ python backyardbuoys_main.py -p addMetadata -l quileute_south
 ```bash
 python backyardbuoys_main.py -p addDataset -l quileute_south
 ```
+
+#### Process a non-db CSV File for a Location
+```bash
+python backyardbuoys_process_nondb_csv.py -l tomales_bay -f aoos_2023_data/tomales-bay_2023.csv
+```
+
+If `-f` is omitted, the script searches recursively under the `non-db_data` path
+from `python_scripts/bb_dirs.json` and uses the most recently modified CSV whose
+filename matches the location ID (underscore or hyphen form).
 
 ## Data Processing Workflow
 

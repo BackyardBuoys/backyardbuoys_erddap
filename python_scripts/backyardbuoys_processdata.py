@@ -1810,7 +1810,7 @@ def netcdf_add_smart_variables(dataset, loc_id, ds_smart, smart_vars):
 # In[ ]:
 
 
-def write_netcdf(ds, loc_id, datayear, datamonth, smart_vars=None):
+def write_netcdf(ds, loc_id, datayear, datamonth, smart_vars=None, nondb_flag=False):
     
     # If there is no data in the dataframe, do not make a netCDF
     if len(ds) == 0:
@@ -1839,10 +1839,12 @@ def write_netcdf(ds, loc_id, datayear, datamonth, smart_vars=None):
     else:
         datamonth_str = str(int(datamonth))
     tempfile = 'bb_tempfile.nc'
+    newfile = 'bb_' + loc_id
     if smartflag:
-        newfile = 'bb_' + loc_id + '_smart_' + datayear_str + datamonth_str + '.nc'
-    else:
-        newfile = 'bb_' + loc_id + '_' + datayear_str + datamonth_str + '.nc'
+        newfile += '_smart'
+    if nondb_flag:
+        newfile += '_nondb'
+    newfile += '_' + datayear_str + datamonth_str + '.nc'
     
     # Check the number of samples in the file
     nsamps = len(ds['time'])
